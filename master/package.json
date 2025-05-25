@@ -1,0 +1,37 @@
+{
+  "name": "unitedrust-combined-bot",
+  "version": "2.0.0",
+  "description": "Combined Discord bot for UnitedRust server - includes raid curfew management, ticket system, and rules commands",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "node-cron": "^3.0.3",
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": "18.x"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "rust",
+    "gaming",
+    "tickets",
+    "moderation",
+    "raid-curfew"
+  ],
+  "author": "UnitedRust",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/unitedrust/discord-bot.git"
+  }
+}
