@@ -33,56 +33,62 @@ const commands = [
         ),
 ];
 
+// Function to get current GMT time
+function getCurrentGMT() {
+    const now = new Date();
+    // Add 1 hour to UTC to get GMT (since server is UTC and GMT is UTC+1 currently)
+    return new Date(now.getTime() + (1 * 60 * 60 * 1000));
+}
+
 // Function to check if raiding is currently allowed
 function isRaidingAllowed() {
-    const now = new Date();
-    const utcHour = now.getUTCHours();
-    const utcMinute = now.getUTCMinutes();
+    const gmtTime = getCurrentGMT();
+    const gmtHour = gmtTime.getUTCHours();
 
-    // Raiding not allowed between 11:50 GMT and 11:52 GMT
-    if (utcHour === 11 && utcMinute >= 50) {
-        return false;
-    }
-    if (utcHour === 11 && utcMinute < 52) {
-        return utcMinute < 50;
-    }
-
-    return true;
+    // Raiding not allowed between 00:00 GMT and 08:00 GMT
+    return gmtHour >= 8 && gmtHour < 24;
 }
 
 // Function to get time until raiding is allowed
 function getTimeUntilRaidingAllowed() {
-    const now = new Date();
-    const utcHour = now.getUTCHours();
-    const utcMinute = now.getUTCMinutes();
+    const gmtTime = getCurrentGMT();
+    const gmtHour = gmtTime.getUTCHours();
+    const gmtMinute = gmtTime.getUTCMinutes();
 
     if (isRaidingAllowed()) {
-        // Calculate time until next curfew (23:00 GMT)
-        let hoursUntilCurfew, minutesUntilCurfew;
-
-        if (utcHour < 11 || (utcHour === 23 && utcMinute < 00)) {
-            // Same day
-            hoursUntilCurfew = 11 - utcHour;
-            minutesUntilCurfew = 50 - utcMinute;
-            if (minutesUntilCurfew <= 0) {
-                hoursUntilCurfew--;
-                minutesUntilCurfew += 60;
-            }
+        // Calculate time until next curfew (00:00 GMT)
+        let hoursUntilCurfew = 24 - gmtHour;
+        let minutesUntilCurfew = 60 - gmtMinute;
+        
+        if (minutesUntilCurfew === 60) {
+            minutesUntilCurfew = 0;
         } else {
-            // Next day
-            hoursUntilCurfew = 24 - utcHour + 11;
-            minutesUntilCurfew = 50 - utcMinute;
-            if (minutesUntilCurfew <= 0) {
-                hoursUntilCurfew--;
-                minutesUntilCurfew += 60;
-            }
+            hoursUntilCurfew--;
+        }
+
+        // Handle case where we're exactly at midnight
+        if (hoursUntilCurfew === 24) {
+            hoursUntilCurfew = 0;
         }
 
         return `Raiding is currently **ALLOWED**! Next curfew starts in ${hoursUntilCurfew}h ${minutesUntilCurfew}m`;
     } else {
-        // Calculate time until curfew ends (00:00 GMT)
-        const minutesUntilEnd = 52 - utcMinute;
-        return `Raiding is currently **NOT ALLOWED**! Curfew ends in ${minutesUntilEnd} minutes`;
+        // Calculate time until curfew ends (08:00 GMT)
+        let hoursUntilEnd = 8 - gmtHour;
+        let minutesUntilEnd = 60 - gmtMinute;
+        
+        if (minutesUntilEnd === 60) {
+            minutesUntilEnd = 0;
+        } else {
+            hoursUntilEnd--;
+        }
+
+        // Handle negative hours (shouldn't happen with correct logic)
+        if (hoursUntilEnd < 0) {
+            hoursUntilEnd += 24;
+        }
+        
+        return `Raiding is currently **NOT ALLOWED**! Curfew ends in ${hoursUntilEnd}h ${minutesUntilEnd}m`;
     }
 }
 
@@ -176,33 +182,34 @@ client.once("ready", async () => {
     // Register slash commands
     await registerCommands();
 
-    // Schedule curfew start reminder (11:20 GMT daily - 30 min before 11:50)
+    // Schedule curfew start reminder (23:30 UTC = 00:30 GMT - 30 min before 01:00 GMT midnight)
+    // This sends at 23:30 UTC which is 00:30 GMT, 30 minutes before curfew starts at 01:00 GMT
     cron.schedule(
-        "34 23 * * *",
+        "30 23 * * *",
         () => {
             console.log("Triggering curfew start reminder...");
             sendCurfewStartReminder();
         },
         {
-            timezone: "GMT",
+            timezone: "UTC",
         },
     );
 
-    // Schedule curfew end reminder (11:22 GMT daily - 30 min before 11:52)
+    // Schedule curfew end reminder (06:30 UTC = 07:30 GMT - 30 min before 08:00 GMT)
     cron.schedule(
-        "35 23 * * *",
+        "30 6 * * *",
         () => {
             console.log("Triggering curfew end reminder...");
             sendCurfewEndReminder();
         },
         {
-            timezone: "GMT",
+            timezone: "UTC",
         },
     );
 
     console.log("Cron jobs scheduled successfully!");
-    console.log("- Curfew start reminder: 00:04 GMT daily");
-    console.log("- Curfew end reminder: 00:05 GMT daily");
+    console.log("- Curfew start reminder: 23:30 UTC (00:30 GMT) daily");
+    console.log("- Curfew end reminder: 06:30 UTC (07:30 GMT) daily");
 });
 
 // Handle slash command interactions
@@ -212,9 +219,8 @@ client.on("interactionCreate", async (interaction) => {
     if (interaction.commandName === "curfew") {
         try {
             const statusMessage = getTimeUntilRaidingAllowed();
-            const currentTime =
-                new Date().toISOString().replace("T", " ").slice(0, 19) +
-                " GMT";
+            const gmtTime = getCurrentGMT();
+            const currentTimeGMT = gmtTime.toISOString().replace("T", " ").slice(0, 19) + " GMT";
 
             const embed = new EmbedBuilder()
                 .setColor(isRaidingAllowed() ? "#00FF00" : "#FF0000")
@@ -223,12 +229,12 @@ client.on("interactionCreate", async (interaction) => {
                 .addFields(
                     {
                         name: "🕐 Current Time (GMT)",
-                        value: currentTime,
+                        value: currentTimeGMT,
                         inline: true,
                     },
                     {
                         name: "🚫 Curfew Hours",
-                        value: "00:04 GMT - 00:05 GMT",
+                        value: "00:00 GMT - 08:00 GMT",
                         inline: true,
                     },
                 )
