@@ -10,10 +10,10 @@ const cron = require("node-cron");
 
 // Bot configuration
 const TOKEN =
-    "MTM3MDY3NzY5MDUwMzM5NzQxNg.GbJK5g.CRNDckaMh2sc0T_R5Cl0PjV-45xhv2Mb2ZvbLI";
-const CLIENT_ID = "1375977764435525794";
-const GUILD_ID = "1375970038418247770"; // Your Discord server ID
-const GENERAL_CHANNEL_ID = "1375970039357902984";
+    "";
+const CLIENT_ID = "";
+const GUILD_ID = ""; // Your Discord server ID
+const GENERAL_CHANNEL_ID = "";
 
 // Create Discord client
 const client = new Client({
