@@ -57,10 +57,10 @@ function getTimeUntilRaidingAllowed() {
     const utcMinute = now.getUTCMinutes();
 
     if (isRaidingAllowed()) {
-        // Calculate time until next curfew (11:50 GMT)
+        // Calculate time until next curfew (23:00 GMT)
         let hoursUntilCurfew, minutesUntilCurfew;
 
-        if (utcHour < 11 || (utcHour === 11 && utcMinute < 50)) {
+        if (utcHour < 11 || (utcHour === 23 && utcMinute < 00)) {
             // Same day
             hoursUntilCurfew = 11 - utcHour;
             minutesUntilCurfew = 50 - utcMinute;
@@ -80,7 +80,7 @@ function getTimeUntilRaidingAllowed() {
 
         return `Raiding is currently **ALLOWED**! Next curfew starts in ${hoursUntilCurfew}h ${minutesUntilCurfew}m`;
     } else {
-        // Calculate time until curfew ends (11:52 GMT)
+        // Calculate time until curfew ends (00:00 GMT)
         const minutesUntilEnd = 52 - utcMinute;
         return `Raiding is currently **NOT ALLOWED**! Curfew ends in ${minutesUntilEnd} minutes`;
     }
@@ -95,7 +95,7 @@ async function sendCurfewStartReminder() {
             .setColor("#FF0000")
             .setTitle("🚫 Raid Curfew Starting Soon!")
             .setDescription(
-                "**Raid Curfew Reminder**\n\nRemember, we do not allow raiding between the hours of 11:50GMT and 11:52GMT. We actively monitor this and raiding during these times may result in an instant ban! We have implemented this rule for the good of the entire community.",
+                "**Raid Curfew Reminder**\n\nRemember, we do not allow raiding between the hours of 00:00GMT and 08:00GMT. We actively monitor this and raiding during these times may result in an instant ban! We have implemented this rule for the good of the entire community.",
             )
             .addFields(
                 {
@@ -105,7 +105,7 @@ async function sendCurfewStartReminder() {
                 },
                 {
                     name: "🕐 Curfew Hours",
-                    value: "11:50 GMT - 11:52 GMT",
+                    value: "00:00 GMT - 08:00 GMT",
                     inline: true,
                 },
             )
@@ -138,7 +138,7 @@ async function sendCurfewEndReminder() {
                 },
                 {
                     name: "🕐 Raiding Resumes At",
-                    value: "11:52 GMT",
+                    value: "08:00 GMT",
                     inline: true,
                 },
             )
