@@ -179,8 +179,6 @@ if (missingConfig.length > 0) {
     // Don't exit in Replit, let it continue for debugging
 }
 
-
-
 // Initialize Discord client
 const client = new Client({
     intents: [
@@ -348,6 +346,64 @@ async function sendCurfewEndReminder() {
         console.log("✅ Curfew end reminder sent successfully");
     } catch (error) {
         console.error("❌ Error sending curfew end reminder:", error);
+    }
+}
+
+// ================== PLAYTIME GIVEAWAY FUNCTIONS ==================
+
+// Function to send playtime giveaway reminder
+async function sendPlaytimeGiveawayMessage() {
+    try {
+        const channel = await client.channels.fetch(config.generalChannelId);
+
+        const embed = new EmbedBuilder()
+            .setColor("#FFD700") // Gold color
+            .setTitle("🎁 UnitedRust - Playtime Giveaway!")
+            .setDescription(
+                "**Think you've got the grind in you?**\n\nWe're rewarding the **Top 3 players** with the most **Active Playtime** (AFK excluded!) with some juicy rewards!",
+            )
+            .addFields(
+                {
+                    name: "🥇 1st Place",
+                    value: "**High Quality Bag**",
+                    inline: true,
+                },
+                {
+                    name: "🥈 2nd Place",
+                    value: "**Weapon Barrel**",
+                    inline: true,
+                },
+                {
+                    name: "🥉 3rd Place",
+                    value: "**High Quality Crate**",
+                    inline: true,
+                },
+                {
+                    name: "🎰 Mystery Loot",
+                    value: "These mystery loot prizes are completely random – They could be worth hundreds, or they could be £2 skins... **That's the thrill of it** — you've got to be in it to win it!",
+                    inline: false,
+                },
+                {
+                    name: "⏰ When?",
+                    value: "The winners will be revealed at the **end of the current wipe** — make sure your grind time counts and don't AFK your way out of glory!",
+                    inline: false,
+                },
+                {
+                    name: "🚀 Get Started",
+                    value: "**Start playing. Stay active. Secure your spot on the leaderboard.**",
+                    inline: false,
+                },
+            )
+            .setThumbnail(
+                "https://via.placeholder.com/128x128/FFD700/000000?text=🎁",
+            )
+            .setTimestamp()
+            .setFooter({ text: "UnitedRust - Active Playtime Counts!" });
+
+        await channel.send({ embeds: [embed] });
+        console.log("✅ Playtime giveaway message sent successfully");
+    } catch (error) {
+        console.error("❌ Error sending playtime giveaway message:", error);
     }
 }
 
@@ -736,6 +792,13 @@ const commands = [
             "Check if raiding is currently allowed or when it will be allowed again",
         ),
 
+    // Playtime Giveaway Commands
+    new SlashCommandBuilder()
+        .setName("send-giveaway")
+        .setDescription(
+            "Manually send the playtime giveaway message (Admin only)",
+        ),
+
     // Ticket Commands
     new SlashCommandBuilder()
         .setName("setup-tickets")
@@ -884,9 +947,22 @@ client.once("ready", async () => {
         { timezone: "UTC" },
     );
 
+    // Schedule playtime giveaway message every 4 hours
+    cron.schedule(
+        "0 */4 * * *",
+        () => {
+            console.log("🎁 Triggering playtime giveaway message...");
+            sendPlaytimeGiveawayMessage();
+        },
+        { timezone: "UTC" },
+    );
+
     console.log("🕒 Cron jobs scheduled successfully!");
     console.log("- Curfew start reminder: 23:30 UTC (00:30 GMT) daily");
     console.log("- Curfew end reminder: 06:30 UTC (07:30 GMT) daily");
+    console.log(
+        "- Playtime giveaway message: Every 4 hours (00:00, 04:00, 08:00, 12:00, 16:00, 20:00 UTC)",
+    );
 });
 
 // Handle interactions
@@ -953,6 +1029,23 @@ async function handleSlashCommand(interaction) {
                 await interaction.reply({ embeds: [curfewEmbed] });
                 break;
 
+            case "send-giveaway":
+                if (
+                    !member.permissions.has(PermissionFlagsBits.Administrator)
+                ) {
+                    return interaction.reply({
+                        content:
+                            "❌ You need Administrator permissions to use this command.",
+                        ephemeral: true,
+                    });
+                }
+                await sendPlaytimeGiveawayMessage();
+                await interaction.reply({
+                    content: "✅ Playtime giveaway message has been sent!",
+                    ephemeral: true,
+                });
+                break;
+
             case "setup-tickets":
                 if (
                     !member.permissions.has(PermissionFlagsBits.Administrator)
@@ -1011,128 +1104,226 @@ async function handleSlashCommand(interaction) {
                 await closeTicket(interaction);
                 break;
 
-// Replace the existing discordrules and serverrules cases in your handleSlashCommand function
+            // Replace the existing discordrules and serverrules cases in your handleSlashCommand function
 
-case "discordrules":
-    try {
-        const commandFiles = loadCommandFiles();
-        
-        // First embed - Introduction and General Rules Part 1
-        const generalRulesEmbed1 = new EmbedBuilder()
-            .setTitle("📋 UnitedRust Discord Server Rules")
-            .setColor(0x5865F2)
-            .setDescription("Please read and follow these rules to maintain a positive community environment.")
-            .addFields(
-                { name: "**1. Respect Staff**", value: "Respect the staff team and their decisions, their word is final and if you have an issue put a ticket in.", inline: false },
-                { name: "**2. No Harmful Content**", value: "Absolutely no: NSFW Content/Racism/Sexism/Discrimination/Bigotry/Doxxing and or Harassment. Be respectful towards members and remember banter is fine but be mindful that what you say may not be perceived as a joke by others.", inline: false },
-                { name: "**3. Use Appropriate Channels**", value: "Utilise appropriate channels for your messages (eg: self promotion in the self promo channel)", inline: false }
-            );
+            case "discordrules":
+                try {
+                    const commandFiles = loadCommandFiles();
 
-        // Second embed - General Rules Part 2
-        const generalRulesEmbed2 = new EmbedBuilder()
-            .setTitle("📋 Discord Rules (Continued)")
-            .setColor(0x5865F2)
-            .addFields(
-                { name: "**3a. Self-Promotion Guidelines**", value: "In the self-promotion channel you may only link your content such as (Videos, Streams, Art etc). You may not upload malicious files into the channel, or post malicious links (IP-Loggers, screamers etc) or videos of you cheating blatantly. This is an instant ban.", inline: false },
-                { name: "**4. Language Filters**", value: "Do not intentionally attempt to get around the language filters that we have set.", inline: false },
-                { name: "**5. Staff Mentions**", value: "Mentioning @Admin / @OWNER for silly things will result in instant mute.", inline: false },
-                { name: "**6. No Drama**", value: "Do NOT stir drama in chat/s with staff or other members of DC. Don't bring your in-ticket issues into chat if you are unhappy with the outcome. Don't type same thing, going in circles with staff. Do NOT be disrespectful to staff. If you have issue with staff contact Manager/s or Owner. Failure to do so will get you muted.", inline: false }
-            );
+                    // First embed - Introduction and General Rules Part 1
+                    const generalRulesEmbed1 = new EmbedBuilder()
+                        .setTitle("📋 UnitedRust Discord Server Rules")
+                        .setColor(0x5865f2)
+                        .setDescription(
+                            "Please read and follow these rules to maintain a positive community environment.",
+                        )
+                        .addFields(
+                            {
+                                name: "**1. Respect Staff**",
+                                value: "Respect the staff team and their decisions, their word is final and if you have an issue put a ticket in.",
+                                inline: false,
+                            },
+                            {
+                                name: "**2. No Harmful Content**",
+                                value: "Absolutely no: NSFW Content/Racism/Sexism/Discrimination/Bigotry/Doxxing and or Harassment. Be respectful towards members and remember banter is fine but be mindful that what you say may not be perceived as a joke by others.",
+                                inline: false,
+                            },
+                            {
+                                name: "**3. Use Appropriate Channels**",
+                                value: "Utilise appropriate channels for your messages (eg: self promotion in the self promo channel)",
+                                inline: false,
+                            },
+                        );
 
-        // Third embed - Voice Chat Rules
-        const voiceRulesEmbed = new EmbedBuilder()
-            .setTitle("🎤 Voice Chat Rules")
-            .setColor(0x57F287)
-            .addFields(
-                { name: "**1. No Mic Spam**", value: "Keep your microphone usage respectful and avoid spamming.", inline: false },
-                { name: "**2. No Harmful Content**", value: "Absolutely no: Racism/Sexism/Discrimination/Bigotry/Doxxing and or Harassment within the voice channels.", inline: false },
-                { name: "**3. No NSFW Streaming**", value: "No Streaming NSFW Content or anything illegal.", inline: false }
-            )
-            .setFooter({ text: "Remember: These rules help maintain a positive community environment for everyone. Violations will result in appropriate punishments ranging from warnings to permanent bans." });
+                    // Second embed - General Rules Part 2
+                    const generalRulesEmbed2 = new EmbedBuilder()
+                        .setTitle("📋 Discord Rules (Continued)")
+                        .setColor(0x5865f2)
+                        .addFields(
+                            {
+                                name: "**3a. Self-Promotion Guidelines**",
+                                value: "In the self-promotion channel you may only link your content such as (Videos, Streams, Art etc). You may not upload malicious files into the channel, or post malicious links (IP-Loggers, screamers etc) or videos of you cheating blatantly. This is an instant ban.",
+                                inline: false,
+                            },
+                            {
+                                name: "**4. Language Filters**",
+                                value: "Do not intentionally attempt to get around the language filters that we have set.",
+                                inline: false,
+                            },
+                            {
+                                name: "**5. Staff Mentions**",
+                                value: "Mentioning @Admin / @OWNER for silly things will result in instant mute.",
+                                inline: false,
+                            },
+                            {
+                                name: "**6. No Drama**",
+                                value: "Do NOT stir drama in chat/s with staff or other members of DC. Don't bring your in-ticket issues into chat if you are unhappy with the outcome. Don't type same thing, going in circles with staff. Do NOT be disrespectful to staff. If you have issue with staff contact Manager/s or Owner. Failure to do so will get you muted.",
+                                inline: false,
+                            },
+                        );
 
-        // Send all embeds as separate messages
-        await interaction.reply({ embeds: [generalRulesEmbed1] });
-        await interaction.followUp({ embeds: [generalRulesEmbed2] });
-        await interaction.followUp({ embeds: [voiceRulesEmbed] });
+                    // Third embed - Voice Chat Rules
+                    const voiceRulesEmbed = new EmbedBuilder()
+                        .setTitle("🎤 Voice Chat Rules")
+                        .setColor(0x57f287)
+                        .addFields(
+                            {
+                                name: "**1. No Mic Spam**",
+                                value: "Keep your microphone usage respectful and avoid spamming.",
+                                inline: false,
+                            },
+                            {
+                                name: "**2. No Harmful Content**",
+                                value: "Absolutely no: Racism/Sexism/Discrimination/Bigotry/Doxxing and or Harassment within the voice channels.",
+                                inline: false,
+                            },
+                            {
+                                name: "**3. No NSFW Streaming**",
+                                value: "No Streaming NSFW Content or anything illegal.",
+                                inline: false,
+                            },
+                        )
+                        .setFooter({
+                            text: "Remember: These rules help maintain a positive community environment for everyone. Violations will result in appropriate punishments ranging from warnings to permanent bans.",
+                        });
 
-    } catch (error) {
-        console.error("❌ Error loading Discord rules:", error);
-        await interaction.reply({
-            content: "❌ Error loading Discord rules. Please contact an administrator.",
-            ephemeral: true,
-        });
-    }
-    break;
+                    // Send all embeds as separate messages
+                    await interaction.reply({ embeds: [generalRulesEmbed1] });
+                    await interaction.followUp({
+                        embeds: [generalRulesEmbed2],
+                    });
+                    await interaction.followUp({ embeds: [voiceRulesEmbed] });
+                } catch (error) {
+                    console.error("❌ Error loading Discord rules:", error);
+                    await interaction.reply({
+                        content:
+                            "❌ Error loading Discord rules. Please contact an administrator.",
+                        ephemeral: true,
+                    });
+                }
+                break;
 
-case "serverrules":
-    try {
-        const commandFiles = loadCommandFiles();
-        
-        // First embed - Introduction and Raid Policy
-        const serverRulesEmbed1 = new EmbedBuilder()
-            .setTitle("🎮 UnitedRust Server Rules")
-            .setDescription("**Play Fair. Play Hard. Zero Tolerance for Cheating**")
-            .setColor(0xE67E22)
-            .addFields(
-                { name: "🕐 **RAID POLICY & OFFLINE PROTECTION**", value: "**No-Raid Hours:** 00:00GMT - 08:00GMT\n\nStrictly enforced with active monitoring. No raiding, door camping, or aggressive PvP during these hours. Violations result in immediate punishment - no warnings given.\n\n**Exception:** Self-defense is permitted if you are attacked first.", inline: false },
-                { name: "🚫 **ANTI-CHEAT & EXPLOITS**", value: "**Zero Tolerance Policy** - No cheats, hacks, scripts, macro programs, or automation tools. Game exploits and bug abuse are prohibited.\n\n**Punishment:** Instant permanent ban for player and entire team. No appeals for cheat bans.", inline: false }
-            )
-            .setTimestamp();
+            case "serverrules":
+                try {
+                    const commandFiles = loadCommandFiles();
 
-        // Second embed - Team Rules and Chat Rules
-        const serverRulesEmbed2 = new EmbedBuilder()
-            .setTitle("👥 Team & Communication Rules")
-            .setColor(0x3498DB)
-            .addFields(
-                { name: "👥 **GROUP & TEAM REGULATIONS**", value: "**Maximum:** 6 players per team, strictly enforced\n**No Alliances:** Cannot work with other teams\n**Team Changes:** One per wipe cycle only\n**Process:** Must open Discord ticket before switching\n**Cooldown:** 24-hour waiting period", inline: false },
-                { name: "💬 **CHAT RULES & COMMUNICATION**", value: "**Global Chat:** English only, friendly banter encouraged\n**Strictly Forbidden:** Personal harassment, spam, racist/discriminatory language, trolling, doxxing\n**Team Chat:** Any language permitted, not monitored unless reported", inline: false }
-            );
+                    // First embed - Introduction and Raid Policy
+                    const serverRulesEmbed1 = new EmbedBuilder()
+                        .setTitle("🎮 UnitedRust Server Rules")
+                        .setDescription(
+                            "**Play Fair. Play Hard. Zero Tolerance for Cheating**",
+                        )
+                        .setColor(0xe67e22)
+                        .addFields(
+                            {
+                                name: "🕐 **RAID POLICY & OFFLINE PROTECTION**",
+                                value: "**No-Raid Hours:** 00:00GMT - 08:00GMT\n\nStrictly enforced with active monitoring. No raiding, door camping, or aggressive PvP during these hours. Violations result in immediate punishment - no warnings given.\n\n**Exception:** Self-defense is permitted if you are attacked first.",
+                                inline: false,
+                            },
+                            {
+                                name: "🚫 **ANTI-CHEAT & EXPLOITS**",
+                                value: "**Zero Tolerance Policy** - No cheats, hacks, scripts, macro programs, or automation tools. Game exploits and bug abuse are prohibited.\n\n**Punishment:** Instant permanent ban for player and entire team. No appeals for cheat bans.",
+                                inline: false,
+                            },
+                        )
+                        .setTimestamp();
 
-        // Third embed - Raiding Rules
-        const serverRulesEmbed3 = new EmbedBuilder()
-            .setTitle("⚔️ Raiding Rules & Guidelines")
-            .setColor(0xF39C12)
-            .addFields(
-                { name: "⚔️ **PERMITTED RAIDING**", value: "**Timing:** Only between 08:01GMT and 23:59GMT\n**Team Composition:** Only raid with registered teammates\n**Time Limit:** Must complete within 4 hours maximum", inline: false },
-                { name: "🚫 **PROHIBITED BEHAVIORS**", value: "**Base Blocking:** Cannot place external TCs to prevent expansion\n**Complete Sealing:** Cannot fully wall off bases\n**Base Takeovers:** Cannot claim someone else's active base\n**Grief Despawning:** Cannot destroy loot solely to deny it", inline: false },
-                { name: "📋 **RAID COMPLETION REQUIREMENTS**", value: "All external TCs placed during raid must have locks removed or unlocked. Raided party must be able to access/remove external TCs after completion.", inline: false }
-            );
+                    // Second embed - Team Rules and Chat Rules
+                    const serverRulesEmbed2 = new EmbedBuilder()
+                        .setTitle("👥 Team & Communication Rules")
+                        .setColor(0x3498db)
+                        .addFields(
+                            {
+                                name: "👥 **GROUP & TEAM REGULATIONS**",
+                                value: "**Maximum:** 6 players per team, strictly enforced\n**No Alliances:** Cannot work with other teams\n**Team Changes:** One per wipe cycle only\n**Process:** Must open Discord ticket before switching\n**Cooldown:** 24-hour waiting period",
+                                inline: false,
+                            },
+                            {
+                                name: "💬 **CHAT RULES & COMMUNICATION**",
+                                value: "**Global Chat:** English only, friendly banter encouraged\n**Strictly Forbidden:** Personal harassment, spam, racist/discriminatory language, trolling, doxxing\n**Team Chat:** Any language permitted, not monitored unless reported",
+                                inline: false,
+                            },
+                        );
 
-        // Fourth embed - Account Requirements and Punishment
-        const serverRulesEmbed4 = new EmbedBuilder()
-            .setTitle("📋 Account & Punishment System")
-            .setColor(0x9B59B6)
-            .addFields(
-                { name: "📋 **ACCOUNT REQUIREMENTS**", value: "**Steam Profile:** Must be public at all times\n**Ban History:** No VAC/game bans under 500 days\n**Rust Bans:** No more than 1 previous admin ban\n**VPNs:** Prohibited (contact staff for exceptions)", inline: false },
-                { name: "⚖️ **PUNISHMENT SYSTEM**", value: "**First Offense:** 15-day temporary ban\n**Second Offense:** Permanent ban\n**Cheating/Exploiting:** Immediate permanent ban for entire team\n**Chat Violations:** Progressive muting system (1h → 24h → 7d ban → permanent)", inline: false }
-            );
+                    // Third embed - Raiding Rules
+                    const serverRulesEmbed3 = new EmbedBuilder()
+                        .setTitle("⚔️ Raiding Rules & Guidelines")
+                        .setColor(0xf39c12)
+                        .addFields(
+                            {
+                                name: "⚔️ **PERMITTED RAIDING**",
+                                value: "**Timing:** Only between 08:01GMT and 23:59GMT\n**Team Composition:** Only raid with registered teammates\n**Time Limit:** Must complete within 4 hours maximum",
+                                inline: false,
+                            },
+                            {
+                                name: "🚫 **PROHIBITED BEHAVIORS**",
+                                value: "**Base Blocking:** Cannot place external TCs to prevent expansion\n**Complete Sealing:** Cannot fully wall off bases\n**Base Takeovers:** Cannot claim someone else's active base\n**Grief Despawning:** Cannot destroy loot solely to deny it",
+                                inline: false,
+                            },
+                            {
+                                name: "📋 **RAID COMPLETION REQUIREMENTS**",
+                                value: "All external TCs placed during raid must have locks removed or unlocked. Raided party must be able to access/remove external TCs after completion.",
+                                inline: false,
+                            },
+                        );
 
-        // Fifth embed - Reporting and Final Information
-        const serverRulesEmbed5 = new EmbedBuilder()
-            .setTitle("🎯 Reporting & Support")
-            .setColor(0x1ABC9C)
-            .addFields(
-                { name: "🎯 **REPORTING SYSTEM**", value: "**In-Game:** Use `/report [playername] [reason]`\n**Discord:** Open support tickets for complex issues\n**Response Time:** Staff investigate within 24 hours\n**Evidence:** Screenshots/video help investigations", inline: false },
-                { name: "👮 **STAFF AUTHORITY**", value: "All staff decisions are final. Use Discord tickets for concerns. Treat staff with respect - harassment results in escalated punishment.", inline: false },
-                { name: "👨‍👩‍👧‍👦 **TEAM ACCOUNTABILITY**", value: "Teams are responsible for ALL members' actions. One rule breaker can result in entire team punishment. Choose teammates carefully!", inline: false }
-            )
-            .setFooter({ text: "Ignorance of rules is not an excuse. Play fair, respect others, and enjoy! | Last Updated: May 25, 2025" });
+                    // Fourth embed - Account Requirements and Punishment
+                    const serverRulesEmbed4 = new EmbedBuilder()
+                        .setTitle("📋 Account & Punishment System")
+                        .setColor(0x9b59b6)
+                        .addFields(
+                            {
+                                name: "📋 **ACCOUNT REQUIREMENTS**",
+                                value: "**Steam Profile:** Must be public at all times\n**Ban History:** No VAC/game bans under 500 days\n**Rust Bans:** No more than 1 previous admin ban\n**VPNs:** Prohibited (contact staff for exceptions)",
+                                inline: false,
+                            },
+                            {
+                                name: "⚖️ **PUNISHMENT SYSTEM**",
+                                value: "**First Offense:** 15-day temporary ban\n**Second Offense:** Permanent ban\n**Cheating/Exploiting:** Immediate permanent ban for entire team\n**Chat Violations:** Progressive muting system (1h → 24h → 7d ban → permanent)",
+                                inline: false,
+                            },
+                        );
 
-        // Send all embeds as separate messages
-        await interaction.reply({ embeds: [serverRulesEmbed1] });
-        await interaction.followUp({ embeds: [serverRulesEmbed2] });
-        await interaction.followUp({ embeds: [serverRulesEmbed3] });
-        await interaction.followUp({ embeds: [serverRulesEmbed4] });
-        await interaction.followUp({ embeds: [serverRulesEmbed5] });
+                    // Fifth embed - Reporting and Final Information
+                    const serverRulesEmbed5 = new EmbedBuilder()
+                        .setTitle("🎯 Reporting & Support")
+                        .setColor(0x1abc9c)
+                        .addFields(
+                            {
+                                name: "🎯 **REPORTING SYSTEM**",
+                                value: "**In-Game:** Use `/report [playername] [reason]`\n**Discord:** Open support tickets for complex issues\n**Response Time:** Staff investigate within 24 hours\n**Evidence:** Screenshots/video help investigations",
+                                inline: false,
+                            },
+                            {
+                                name: "👮 **STAFF AUTHORITY**",
+                                value: "All staff decisions are final. Use Discord tickets for concerns. Treat staff with respect - harassment results in escalated punishment.",
+                                inline: false,
+                            },
+                            {
+                                name: "👨‍👩‍👧‍👦 **TEAM ACCOUNTABILITY**",
+                                value: "Teams are responsible for ALL members' actions. One rule breaker can result in entire team punishment. Choose teammates carefully!",
+                                inline: false,
+                            },
+                        )
+                        .setFooter({
+                            text: "Ignorance of rules is not an excuse. Play fair, respect others, and enjoy! | Last Updated: May 25, 2025",
+                        });
 
-    } catch (error) {
-        console.error("❌ Error loading server rules:", error);
-        await interaction.reply({
-            content: "❌ Error loading server rules. Please contact an administrator.",
-            ephemeral: true,
-        });
-    }
-    break;               
+                    // Send all embeds as separate messages
+                    await interaction.reply({ embeds: [serverRulesEmbed1] });
+                    await interaction.followUp({ embeds: [serverRulesEmbed2] });
+                    await interaction.followUp({ embeds: [serverRulesEmbed3] });
+                    await interaction.followUp({ embeds: [serverRulesEmbed4] });
+                    await interaction.followUp({ embeds: [serverRulesEmbed5] });
+                } catch (error) {
+                    console.error("❌ Error loading server rules:", error);
+                    await interaction.reply({
+                        content:
+                            "❌ Error loading server rules. Please contact an administrator.",
+                        ephemeral: true,
+                    });
+                }
+                break;
 
             // Ticket management commands
             case "add-user":
@@ -1324,7 +1515,12 @@ app.get("/", (req, res) => {
         bot_status: client.user ? "Online" : "Connecting...",
         guilds: client.guilds.cache.size,
         tickets: tickets.size,
-        features: ["Raid Curfew", "Ticket System", "Rules Commands"],
+        features: [
+            "Raid Curfew",
+            "Ticket System",
+            "Rules Commands",
+            "Playtime Giveaway",
+        ],
     });
 });
 
