@@ -13,7 +13,7 @@ const fs = require("fs");
 
 // Bot configuration - Replace with your actual values
 const config = {
-    token: 'your_discord_bot_token_here',
+    token: 'MTM3MDY3NzY5MDUwMzM5NzQxNg.GbJK5g.CRNDckaMh2sc0T_R5Cl0PjV-45xhv2Mb2ZvbLI',
     guildId: '1370105711131889775',
     ticketCategoryId: '1370686038137110528',
     moderatorRoleId: '1370106309503877220',
