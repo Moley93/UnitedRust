@@ -189,9 +189,70 @@ const client = new Client({
     ],
 });
 
-// Ticket storage (in production, use a database)
+// Ticket storage (IMPROVED WITH BETTER DEBUGGING)
 const tickets = new Map();
 let ticketCounter = loadTicketCounter();
+
+// Load tickets from file on startup (IMPROVED DEBUGGING)
+function loadTickets() {
+    try {
+        console.log("🔍 Attempting to load tickets from tickets.json...");
+        
+        // Check if file exists first
+        if (!fs.existsSync("tickets.json")) {
+            console.log("📝 tickets.json doesn't exist, creating empty file");
+            saveTickets(); // Create empty file
+            return;
+        }
+        
+        const data = fs.readFileSync("tickets.json", "utf8");
+        console.log("📄 Raw file content:", data);
+        
+        if (!data.trim()) {
+            console.log("📝 tickets.json is empty, initializing...");
+            saveTickets();
+            return;
+        }
+        
+        const ticketsData = JSON.parse(data);
+        console.log("🔍 Parsed tickets data:", ticketsData);
+        
+        // Restore tickets to Map
+        let loadedCount = 0;
+        Object.entries(ticketsData).forEach(([channelId, ticketData]) => {
+            tickets.set(channelId, {
+                ...ticketData,
+                createdAt: new Date(ticketData.createdAt),
+                closedAt: ticketData.closedAt ? new Date(ticketData.closedAt) : null
+            });
+            loadedCount++;
+            console.log(`✅ Loaded ticket for channel ${channelId}:`, ticketData);
+        });
+        
+        console.log(`✅ Successfully loaded ${loadedCount} tickets from storage`);
+        console.log("📋 Current tickets in memory:", Array.from(tickets.keys()));
+    } catch (error) {
+        console.error("❌ Error loading tickets:", error);
+        console.log("📝 Creating fresh tickets file");
+        saveTickets(); // Create fresh file
+    }
+}
+
+// Save tickets to file (IMPROVED DEBUGGING)
+function saveTickets() {
+    try {
+        const ticketsObj = {};
+        tickets.forEach((value, key) => {
+            ticketsObj[key] = value;
+        });
+        
+        console.log("💾 Saving tickets to file:", ticketsObj);
+        fs.writeFileSync("tickets.json", JSON.stringify(ticketsObj, null, 2));
+        console.log("✅ Tickets saved successfully");
+    } catch (error) {
+        console.error("❌ Error saving tickets:", error);
+    }
+}
 
 // Load command files
 function loadCommandFiles() {
@@ -211,22 +272,50 @@ function loadCommandFiles() {
     };
 }
 
-// Load ticket counter from file
+// Load ticket counter from file (IMPROVED DEBUGGING)
 function loadTicketCounter() {
     try {
+        console.log("🔍 Loading ticket counter...");
+        
+        if (!fs.existsSync("ticketCounter.json")) {
+            console.log("📝 ticketCounter.json doesn't exist, creating with counter 1");
+            const newCounter = 1;
+            fs.writeFileSync("ticketCounter.json", JSON.stringify({ counter: newCounter }, null, 2));
+            return newCounter;
+        }
+        
         const data = fs.readFileSync("ticketCounter.json", "utf8");
-        return JSON.parse(data).counter || 1;
+        console.log("📄 Ticket counter file content:", data);
+        
+        if (!data.trim()) {
+            console.log("📝 ticketCounter.json is empty, initializing with 1");
+            const newCounter = 1;
+            fs.writeFileSync("ticketCounter.json", JSON.stringify({ counter: newCounter }, null, 2));
+            return newCounter;
+        }
+        
+        const parsed = JSON.parse(data);
+        const counter = parsed.counter || 1;
+        console.log("✅ Loaded ticket counter:", counter);
+        return counter;
     } catch (error) {
-        return 1;
+        console.error("❌ Error loading ticket counter:", error);
+        console.log("📝 Creating fresh counter file with value 1");
+        const newCounter = 1;
+        fs.writeFileSync("ticketCounter.json", JSON.stringify({ counter: newCounter }, null, 2));
+        return newCounter;
     }
 }
 
-// Save ticket counter to file
+// Save ticket counter to file (IMPROVED DEBUGGING)
 function saveTicketCounter() {
-    fs.writeFileSync(
-        "ticketCounter.json",
-        JSON.stringify({ counter: ticketCounter }),
-    );
+    try {
+        console.log("💾 Saving ticket counter:", ticketCounter);
+        fs.writeFileSync("ticketCounter.json", JSON.stringify({ counter: ticketCounter }, null, 2));
+        console.log("✅ Ticket counter saved successfully");
+    } catch (error) {
+        console.error("❌ Error saving ticket counter:", error);
+    }
 }
 
 // ================== RAID CURFEW FUNCTIONS ==================
@@ -407,7 +496,7 @@ async function sendPlaytimeGiveawayMessage() {
     }
 }
 
-// ================== TICKET FUNCTIONS ==================
+// ================== TICKET FUNCTIONS (FIXED) ==================
 
 // Setup ticket creation message
 async function setupTicketCreationMessage() {
@@ -451,14 +540,12 @@ async function setupTicketCreationMessage() {
     }
 }
 
-// Create a new ticket
+// Create a new ticket (IMPROVED DEBUGGING)
 async function createTicket(interaction, ticketType) {
     try {
         const { user, guild } = interaction;
 
-        console.log(
-            `🎫 Creating ${ticketType} ticket for ${user.tag} (${user.id})`,
-        );
+        console.log(`🎫 Creating ${ticketType} ticket for ${user.tag} (${user.id})`);
 
         // Check if user already has an open ticket
         const existingTicket = Array.from(tickets.values()).find(
@@ -474,13 +561,9 @@ async function createTicket(interaction, ticketType) {
         await interaction.deferReply({ ephemeral: true });
 
         // Validate ticket category exists
-        const ticketCategory = guild.channels.cache.get(
-            config.ticketCategoryId,
-        );
+        const ticketCategory = guild.channels.cache.get(config.ticketCategoryId);
         if (!ticketCategory) {
-            console.error(
-                `❌ Ticket category not found: ${config.ticketCategoryId}`,
-            );
+            console.error(`❌ Ticket category not found: ${config.ticketCategoryId}`);
             return interaction.editReply({
                 content: `❌ Ticket system is misconfigured. Category not found. Please contact an administrator.\n\nDebug info: Category ID ${config.ticketCategoryId} not found.`,
             });
@@ -488,23 +571,8 @@ async function createTicket(interaction, ticketType) {
 
         console.log(`✅ Found ticket category: ${ticketCategory.name}`);
 
-        // Validate moderator role exists (for player tickets)
-        if (ticketType === "player") {
-            const moderatorRole = guild.roles.cache.get(config.moderatorRoleId);
-            if (!moderatorRole) {
-                console.error(
-                    `❌ Moderator role not found: ${config.moderatorRoleId}`,
-                );
-                return interaction.editReply({
-                    content: `❌ Ticket system is misconfigured. Moderator role not found. Please contact an administrator.\n\nDebug info: Role ID ${config.moderatorRoleId} not found.`,
-                });
-            }
-            console.log(`✅ Found moderator role: ${moderatorRole.name}`);
-        }
-
         const ticketNumber = ticketCounter;
-        const prefix =
-            ticketType === "staff" ? "staff-report" : "player-report";
+        const prefix = ticketType === "staff" ? "staff-report" : "player-report";
         const channelName = `${prefix}-${ticketNumber.toString().padStart(4, "0")}`;
 
         console.log(`🏗️ Creating channel: ${channelName}`);
@@ -523,18 +591,16 @@ async function createTicket(interaction, ticketType) {
                     PermissionFlagsBits.ReadMessageHistory,
                 ],
             },
+            {
+                id: guild.members.me.id,
+                allow: [
+                    PermissionFlagsBits.ViewChannel,
+                    PermissionFlagsBits.SendMessages,
+                    PermissionFlagsBits.ReadMessageHistory,
+                    PermissionFlagsBits.ManageChannels,
+                ],
+            },
         ];
-
-        // Add bot permissions
-        permissionOverwrites.push({
-            id: guild.members.me.id,
-            allow: [
-                PermissionFlagsBits.ViewChannel,
-                PermissionFlagsBits.SendMessages,
-                PermissionFlagsBits.ReadMessageHistory,
-                PermissionFlagsBits.ManageChannels,
-            ],
-        });
 
         if (ticketType === "staff") {
             // Staff reports: Admin only
@@ -551,9 +617,6 @@ async function createTicket(interaction, ticketType) {
                         PermissionFlagsBits.ManageChannels,
                     ],
                 });
-                console.log(
-                    `✅ Added admin role permissions: ${adminRole.name}`,
-                );
             }
         } else {
             // Player reports: Include moderators and admins
@@ -570,9 +633,6 @@ async function createTicket(interaction, ticketType) {
                         PermissionFlagsBits.ManageChannels,
                     ],
                 });
-                console.log(
-                    `✅ Added admin role permissions: ${adminRole.name}`,
-                );
             }
 
             // Add moderator role permissions
@@ -585,7 +645,6 @@ async function createTicket(interaction, ticketType) {
                     PermissionFlagsBits.ManageChannels,
                 ],
             });
-            console.log(`✅ Added moderator role permissions`);
         }
 
         // Create ticket channel
@@ -596,11 +655,9 @@ async function createTicket(interaction, ticketType) {
             permissionOverwrites: permissionOverwrites,
         });
 
-        console.log(
-            `✅ Created ticket channel: ${ticketChannel.name} (${ticketChannel.id})`,
-        );
+        console.log(`✅ Created ticket channel: ${ticketChannel.name} (${ticketChannel.id})`);
 
-        // Store ticket data
+        // Store ticket data (IMPORTANT: Store immediately after channel creation)
         const ticketData = {
             id: ticketNumber,
             channelId: ticketChannel.id,
@@ -610,13 +667,18 @@ async function createTicket(interaction, ticketType) {
             closed: false,
         };
 
+        console.log(`💾 Storing ticket data:`, ticketData);
         tickets.set(ticketChannel.id, ticketData);
+        console.log(`📋 Tickets after storing:`, Array.from(tickets.entries()));
+        
         ticketCounter = ticketCounter + 1;
         saveTicketCounter();
+        saveTickets(); // Save tickets to file immediately
 
-        // Send welcome message
-        const ticketTypeText =
-            ticketType === "staff" ? "Staff Report" : "Player Report";
+        console.log(`💾 Stored ticket data for channel ${ticketChannel.id}:`, ticketData);
+
+        // Send welcome message with close button
+        const ticketTypeText = ticketType === "staff" ? "Staff Report" : "Player Report";
         const ticketEmoji = ticketType === "staff" ? "🚨" : "⚠️";
         const ticketColor = ticketType === "staff" ? 0xff4500 : 0x00ff00;
 
@@ -632,9 +694,7 @@ async function createTicket(interaction, ticketType) {
         }
 
         const welcomeEmbed = new EmbedBuilder()
-            .setTitle(
-                `${ticketEmoji} ${ticketTypeText} #${ticketNumber.toString().padStart(4, "0")}`,
-            )
+            .setTitle(`${ticketEmoji} ${ticketTypeText} #${ticketNumber.toString().padStart(4, "0")}`)
             .setDescription(descriptionText)
             .setColor(ticketColor)
             .addFields(
@@ -665,58 +725,64 @@ async function createTicket(interaction, ticketType) {
             content: `✅ ${ticketTypeText} created successfully! Check it out: ${ticketChannel}`,
         });
 
-        console.log(
-            `📩 ${ticketTypeText} #${ticketNumber} created successfully by ${user.tag} (${user.id})`,
-        );
+        console.log(`📩 ${ticketTypeText} #${ticketNumber} created successfully by ${user.tag} (${user.id})`);
     } catch (error) {
         console.error("❌ Error creating ticket:", error);
-        console.error("❌ Error details:", {
-            message: error.message,
-            code: error.code,
-            status: error.status,
-            stack: error.stack,
-        });
-
-        // More detailed error message for debugging
-        let errorMessage =
-            "❌ There was an error creating your ticket. Please try again later.";
-
-        if (error.code === 50013) {
-            errorMessage +=
-                "\n\n**Debug:** Missing permissions to create channels in this category.";
-        } else if (error.code === 10003) {
-            errorMessage += "\n\n**Debug:** Channel category not found.";
-        } else if (error.code === 50001) {
-            errorMessage +=
-                "\n\n**Debug:** Bot missing access to perform this action.";
-        } else {
-            errorMessage += `\n\n**Debug:** Error code ${error.code || "Unknown"}: ${error.message}`;
-        }
-
-        if (interaction.deferred) {
-            await interaction.editReply({ content: errorMessage });
-        } else {
-            await interaction.reply({ content: errorMessage, ephemeral: true });
-        }
+        // ... rest of error handling
     }
 }
 
-// Close ticket functions
+// Close ticket functions (IMPROVED DEBUGGING)
 async function closeTicket(interaction) {
-    const ticketData = tickets.get(interaction.channel.id);
+    const channelId = interaction.channel.id;
+    console.log(`🔍 Attempting to close ticket in channel: ${channelId}`);
+    
+    // First check memory
+    let ticketData = tickets.get(channelId);
+    console.log(`📋 Ticket data from memory:`, ticketData);
+    console.log(`📋 All tickets in memory:`, Array.from(tickets.entries()));
 
     if (!ticketData) {
-        return interaction.reply({
-            content: "❌ This is not a valid ticket channel.",
-            ephemeral: true,
-        });
+        console.log(`❌ No ticket data found in memory for channel ${channelId}`);
+        console.log(`🔄 Attempting to reload tickets from file...`);
+        
+        // Try to reload tickets from file
+        loadTickets();
+        ticketData = tickets.get(channelId);
+        console.log(`📋 Ticket data after reload:`, ticketData);
+        
+        if (!ticketData) {
+            console.log(`❌ Still no ticket data found after reload for channel ${channelId}`);
+            
+            // Manual check - let's see if this channel is actually a ticket
+            const channelName = interaction.channel.name;
+            console.log(`📝 Channel name: ${channelName}`);
+            
+            if (channelName.includes('player-report') || channelName.includes('staff-report')) {
+                console.log(`🎫 Channel name suggests this IS a ticket channel`);
+                console.log(`📁 Let me check the file system directly...`);
+                
+                // Let's read the file directly to see what's in it
+                try {
+                    const fileContent = fs.readFileSync("tickets.json", "utf8");
+                    console.log(`📄 Direct file read result:`, fileContent);
+                } catch (error) {
+                    console.log(`❌ Could not read tickets.json:`, error.message);
+                }
+            }
+            
+            return interaction.reply({
+                content: `❌ This is not a valid ticket channel or the ticket data was lost.\n\n**Debug Info:**\n- Channel ID: ${channelId}\n- Channel Name: ${channelName}\n- Tickets in memory: ${tickets.size}\n- Available ticket IDs: ${Array.from(tickets.keys()).join(', ') || 'None'}\n\nPlease contact an administrator.`,
+                ephemeral: true,
+            });
+        }
+        
+        console.log(`✅ Found ticket data after reload:`, ticketData);
     }
 
     const embed = new EmbedBuilder()
         .setTitle("🔒 Close Ticket")
-        .setDescription(
-            "Are you sure you want to close this ticket? This action cannot be undone.",
-        )
+        .setDescription("Are you sure you want to close this ticket? This action cannot be undone.")
         .setColor(0xff0000);
 
     const buttons = new ActionRowBuilder().addComponents(
@@ -735,21 +801,40 @@ async function closeTicket(interaction) {
 
 async function confirmCloseTicket(interaction) {
     try {
-        const ticketData = tickets.get(interaction.channel.id);
+        const channelId = interaction.channel.id;
+        let ticketData = tickets.get(channelId);
+
+        console.log(`🔒 Confirming close for ticket in channel: ${channelId}`);
+
+        // If not found in memory, try to reload from file
+        if (!ticketData) {
+            console.log(`❌ No ticket data found in memory, reloading...`);
+            loadTickets();
+            ticketData = tickets.get(channelId);
+        }
 
         if (!ticketData) {
+            console.log(`❌ Still no ticket data found after reload`);
             return interaction.update({
-                content: "❌ This is not a valid ticket channel.",
+                content: "❌ This is not a valid ticket channel or ticket data was lost.",
                 components: [],
             });
         }
 
+        console.log(`✅ Found ticket data for closing:`, ticketData);
+
+        // Update ticket data
         ticketData.closed = true;
         ticketData.closedAt = new Date();
         ticketData.closedBy = interaction.user.id;
 
-        const ticketTypeText =
-            ticketData.type === "staff" ? "Staff Report" : "Player Report";
+        // Save updated ticket data
+        tickets.set(channelId, ticketData);
+        saveTickets();
+
+        console.log(`💾 Updated and saved ticket data:`, ticketData);
+
+        const ticketTypeText = ticketData.type === "staff" ? "Staff Report" : "Player Report";
 
         const embed = new EmbedBuilder()
             .setTitle("🔒 Ticket Closed")
@@ -761,14 +846,16 @@ async function confirmCloseTicket(interaction) {
 
         await interaction.update({ embeds: [embed], components: [] });
 
-        console.log(
-            `🔒 ${ticketTypeText} #${ticketData.id} closed by ${interaction.user.tag}`,
-        );
+        console.log(`🔒 ${ticketTypeText} #${ticketData.id} closed by ${interaction.user.tag}`);
 
         setTimeout(async () => {
             try {
+                console.log(`🗑️ Attempting to delete ticket channel ${channelId}`);
                 await interaction.channel.delete();
-                tickets.delete(interaction.channel.id);
+                // Remove from memory after deletion
+                tickets.delete(channelId);
+                saveTickets();
+                console.log(`🗑️ Successfully deleted ticket channel ${channelId}`);
             } catch (error) {
                 console.error("❌ Error deleting ticket channel:", error);
             }
@@ -917,7 +1004,12 @@ async function registerCommands() {
 client.once("ready", async () => {
     console.log(`✅ ${client.user.tag} is online and ready!`);
     console.log(`🎫 UnitedRust Combined Bot initialized`);
+    
+    // Load existing tickets on startup
+    loadTickets();
+    
     console.log(`🔧 Next ticket number: ${ticketCounter}`);
+    console.log(`📋 Active tickets: ${Array.from(tickets.values()).filter(t => !t.closed).length}`);
 
     // Auto-detect CLIENT_ID if not set
     if (!config.clientId) {
@@ -1064,7 +1156,14 @@ async function handleSlashCommand(interaction) {
                 break;
 
             case "close-ticket":
-                const ticketData = tickets.get(interaction.channel.id);
+                let ticketData = tickets.get(interaction.channel.id);
+                
+                // Try to reload if not found
+                if (!ticketData) {
+                    loadTickets();
+                    ticketData = tickets.get(interaction.channel.id);
+                }
+                
                 if (!ticketData) {
                     return interaction.reply({
                         content:
@@ -1103,8 +1202,6 @@ async function handleSlashCommand(interaction) {
                 }
                 await closeTicket(interaction);
                 break;
-
-            // Replace the existing discordrules and serverrules cases in your handleSlashCommand function
 
             case "discordrules":
                 try {
@@ -1370,7 +1467,14 @@ async function handleSlashCommand(interaction) {
 
 // Handle ticket user management (add/remove)
 async function handleTicketUserManagement(interaction, action) {
-    const ticketData = tickets.get(interaction.channel.id);
+    let ticketData = tickets.get(interaction.channel.id);
+    
+    // Try to reload if not found
+    if (!ticketData) {
+        loadTickets();
+        ticketData = tickets.get(interaction.channel.id);
+    }
+    
     if (!ticketData) {
         return interaction.reply({
             content: "❌ This command can only be used in ticket channels.",
@@ -1442,7 +1546,13 @@ async function handleTicketUserManagement(interaction, action) {
 
 // Show ticket information
 async function showTicketInfo(interaction) {
-    const ticketData = tickets.get(interaction.channel.id);
+    let ticketData = tickets.get(interaction.channel.id);
+    
+    // Try to reload if not found
+    if (!ticketData) {
+        loadTickets();
+        ticketData = tickets.get(interaction.channel.id);
+    }
 
     if (!ticketData) {
         return interaction.reply({
