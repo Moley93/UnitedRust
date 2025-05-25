@@ -1,223 +1,59 @@
-# UnitedRust Server Rules
-**Play Fair. Play Hard. Zero Tolerance for Cheating**
+# 🦀 UnitedRust Server Rules
+
+Welcome to UnitedRust! Please read and follow all rules to ensure a fair and enjoyable experience for everyone.
 
 ---
 
-## 🕐 RAID POLICY & OFFLINE PROTECTION
+## ⚔️ **Gameplay Rules**
 
-### No-Raid Hours: 00:00GMT - 08:00GMT
-- **Strictly Enforced**: This time window is actively monitored by staff
-- **What's Prohibited**: No raiding, door camping, or aggressive PvP during these hours
-- **Purpose**: Protects players during typical offline/sleep hours across multiple time zones
-- **Violations**: Result in immediate punishment - no warnings given
-- **Exception**: Self-defense is permitted if you are attacked first
+### **🕐 Raid Timer Restrictions**
+- **No Raiding Between 00:00 - 08:00 (UK Time)**
+- Raiding is strictly prohibited during these hours to ensure fair play and balanced progression
+- Breaking this rule will result in penalties or bans
 
----
+### **🚫 No Griefing**
+- Do not destroy bases or structures beyond what is necessary for raiding
+- Intentionally making a base unusable or ruining someone's progress is forbidden
 
-## 🚫 ANTI-CHEAT & EXPLOITS
+### **🔨 No Blocking Rebuilding**
+- Players must not prevent others from rebuilding after a raid
+- Placing excessive locks, walls, or barriers to stop a player from recovering their base is prohibited
 
-### Zero Tolerance Policy
-- **Prohibited Software**: No cheats, hacks, scripts, macro programs, or automation tools
-- **Game Exploits**: No bug abuse, duplication glitches, or unintended game mechanics
-- **Detection Methods**: We use multiple detection systems plus manual monitoring
-- **Punishment**: Instant permanent ban for player and entire team
-- **No Appeals**: Cheat bans are final and non-negotiable
+### **🔓 Raided Bases Must Be Unlocked**
+- Once a raid is finished, bases must be left accessible (doors unlocked or removed)
+- Preventing the original owner from reclaiming their base is considered griefing
 
-### Suspicious Behavior
-- Unusually high accuracy, impossible reaction times, or superhuman gameplay
-- Knowledge of player locations without line of sight or reasonable intel
-- Rapid resource gathering beyond normal human capability
-- Staff will investigate all reports thoroughly
+### **👥 Team Size Limits**
+- **Maximum of 6 players** can share access to doors, Tool Cupboard (TC) codes, and turrets
+- Sharing codes or access outside your team is not allowed
 
----
-
-## 💬 CHAT RULES & COMMUNICATION
-
-### Global Chat Guidelines
-- **Language**: English only in global chat
-- **Friendly Banter**: Encouraged - trash talk and competitive spirit welcome
-- **Strictly Forbidden**: 
-  - Personal harassment or real-life threats
-  - Spam (repeating messages, excessive caps)
-  - Racist, homophobic, or discriminatory language
-  - Trolling designed to disrupt gameplay
-  - Doxxing or sharing personal information
-
-### Team Chat
-- **Language**: Any language permitted in team chat
-- **Privacy**: Team communications are not monitored unless reported
-
-### Voice Chat
-- Same rules apply to in-game voice communication
-- Excessive mic spam will result in voice chat restrictions
+### **📝 Team Changes**
+- If a team wants to kick a member to add someone else, they must raise a ticket to notify the admins
+- Unauthorized roster changes may lead to penalties
 
 ---
 
-## 👥 GROUP & TEAM REGULATIONS
+## 💬 **General Chat Rules**
 
-### Team Size Limits
-- **Maximum**: 6 players per team, strictly enforced
-- **No Alliances**: Cannot work with, help, or coordinate with other teams
-- **Verification**: Staff regularly check team compositions and activities
+### **🤝 Respect Others**
+- No harassment, toxic behavior, racism, or discrimination
+- Treat all players with fairness and respect
 
-### Team Switching
-- **Limit**: One team change per wipe cycle only
-- **Process**: Must open support ticket on Discord before switching
-- **Restrictions**: Cannot switch to gain unfair advantage or escape consequences
-- **Cooldown**: 24-hour waiting period between leaving and joining new team
+### **📢 No Excessive Spam or Advertising**
+- Avoid flooding chat with repeated messages or excessive CAPS
+- Do not advertise other servers or unrelated content
 
-### Access Control
-- **Building Privileges**: Maximum 6 players authorized on any TC (Tool Cupboard)
-- **Turret Authorization**: Maximum 6 players authorized on auto-turrets
-- **Code Locks**: Maximum 6 players with access to any code lock
-- **Verification**: Staff can request proof of compliance at any time
+### **⚠️ No Cheating or Exploits**
+- Use of hacks, scripts, or any unfair advantages will result in an immediate ban
+
+### **👨‍💼 Listen to Admins**
+- Admins' decisions are final
+- If you have concerns, raise them respectfully through proper channels
 
 ---
 
-## ⚔️ RAIDING RULES & GUIDELINES
+## ❓ **Questions?**
 
-### Permitted Raiding Activities
-- **Timing**: Only between 08:01GMT and 23:59GMT
-- **Team Composition**: Only raid with your registered teammates
-- **Target Selection**: Any base not in protected hours is fair game
+**Any questions about these rules? Please raise a ticket to double check!**
 
-### Raid Completion Requirements
-- **Time Limit**: Once raid begins, must be completed within 4 hours maximum
-- **External TC Rules**: All external TCs placed during raid must have locks removed or unlocked
-- **Access Requirement**: Raided party must be able to access/remove external TCs after raid completion
-- **Cleanup Responsibility**: Raiders responsible for ensuring external TCs are accessible
-- **Violation Penalty**: Failure to unlock/remove external TCs results in griefing punishment
-
-### Prohibited Raiding Behaviors
-- **Base Blocking**: Cannot place external TCs to prevent base expansion
-- **Complete Sealing**: Cannot fully wall off or Foundation-wipe bases
-- **Base Takeovers**: Cannot claim and occupy someone else's active base
-- **Grief Despawning**: Cannot destroy loot solely to deny it to others
-- **Despawn Detection**: We monitor item destruction patterns
-
-### Raiding Etiquette
-- **Raid Completion**: Finish raids efficiently, don't unnecessarily prolong suffering
-- **Loot Management**: Take what you need, leave excessive griefing behind
-- **Multiple Raids**: Limit repeated targeting of same player/base per day
-
----
-
-## 📋 ACCOUNT REQUIREMENTS
-
-### Steam Account Standards
-- **Profile Visibility**: Steam profile must be set to public at all times
-- **Ban History**: No VAC bans or game bans under 500 days old
-- **Rust Bans**: No more than 1 previous Rust admin ban from any server
-- **Account Age**: Steam account should show reasonable gaming history
-
-### Username & Profile Rules
-- **Server Advertising**: No other server names, IPs, or Discord links in username
-- **Offensive Names**: No racist, offensive, or inappropriate usernames
-- **Impersonation**: Cannot impersonate staff or well-known players
-
-### Connection Security
-- **VPNs Prohibited**: No VPN or proxy connections allowed
-- **IP Consistency**: Players must connect from consistent geographic location
-- **Exception Process**: Contact staff if you have legitimate need for VPN use
-
----
-
-## 🎯 REPORTING & SUPPORT SYSTEM
-
-### In-Game Reporting
-- **Command**: Use `/report [playername] [reason]`
-- **When to Use**: For immediate rule violations, cheating, or harassment
-- **Response Time**: Staff will investigate within 24 hours
-- **Evidence**: Screenshots or video greatly help investigations
-
-### Discord Support Tickets
-- **Complex Issues**: Team changes, appeals, detailed reports
-- **Account Problems**: Profile issues, connection problems
-- **General Support**: Questions about rules or server mechanics
-- **Response Time**: 24-48 hours for most tickets
-
-### What NOT to Do
-- **Global Chat Accusations**: Never call out suspected cheaters in public chat
-- **Witch Hunting**: Don't organize harassment of suspected rule breakers  
-- **Staff Harassment**: Don't repeatedly message staff about pending cases
-
----
-
-## ⚖️ PUNISHMENT SYSTEM
-
-### Server Bans
-**First Offense:**
-- 15-day temporary ban
-- Applies to rule violations, not cheating (which is permanent)
-- Includes griefing, teamwork violations, or repeated harassment
-
-**Second Offense:**
-- Permanent ban from server
-- No appeal process for repeat offenders
-
-### Chat Restrictions (Progressive System)
-1. **First Warning**: 1-hour chat mute
-2. **Second Offense**: 24-hour chat mute  
-3. **Third Offense**: 7-day temporary server ban
-4. **Fourth Offense**: Permanent server ban
-
-### Cheating/Exploiting
-- **Penalty**: Immediate permanent ban
-- **Scope**: Entire team banned regardless of involvement
-- **Appeals**: Not accepted for cheat-related bans
-
----
-
-## 👨‍👩‍👧‍👦 TEAM ACCOUNTABILITY
-
-### Collective Responsibility
-- **Principle**: Teams are responsible for ALL members' actions
-- **Consequences**: One rule breaker can result in entire team punishment
-- **Team Selection**: Choose teammates carefully and monitor their behavior
-- **Communication**: Ensure all team members understand and follow rules
-
-### Punishment Scope
-- **Minor Violations**: May only affect the individual player
-- **Major Violations**: Will affect entire team (griefing, cheating, harassment)
-- **Repeated Issues**: Team may be disbanded and members separated
-
----
-
-## 👮 STAFF AUTHORITY & CONDUCT
-
-### Staff Decision Making
-- **Final Authority**: All staff decisions regarding rule violations are final
-- **Appeal Process**: Limited to permanent bans only, must provide new evidence
-- **Discretion**: Staff may adjust punishments based on circumstances and history
-
-### Player Conduct Toward Staff
-- **Respect Required**: Treat all staff members with respect
-- **No Arguing**: Don't argue with staff decisions in public channels
-- **Proper Channels**: Use Discord tickets for concerns about staff decisions
-- **Harassment**: Harassing staff members results in immediate escalated punishment
-
-### Staff Monitoring
-- **Active Presence**: Staff regularly monitor server activity
-- **Investigation Tools**: Multiple methods used to verify rule compliance
-- **Response Time**: Staff aim to address reported issues within 24 hours
-- **Transparency**: Major rule changes will be announced in advance
-
----
-
-## 📞 CONTACT & SUPPORT
-
-### Discord Server
-- **Primary Support**: Main method for tickets and detailed issues
-- **Community**: General discussion and server updates
-- **Announcements**: Important server news and rule changes
-
-### In-Game Commands
-- `/report` - Report rule violations
-- `/help` - Basic server information
-- `/rules` - Quick rule reference
-
----
-
-**Remember: Ignorance of rules is not an excuse. All players are expected to read, understand, and follow these guidelines. Play fair, respect others, and enjoy the server!**
-
-*Last Updated: May 25, 2025*
+*Thank you for helping make UnitedRust a great community for everyone! 🎮*
