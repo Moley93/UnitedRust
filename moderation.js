@@ -20,7 +20,9 @@ class ModerationSystem {
             const amount = interaction.options.getInteger("amount");
 
             // Check permissions
-            const hasAdminRole = member.roles.cache.has(this.config.adminRoleId);
+            const hasAdminRole = this.config.adminRoleIds.some(roleId => 
+                member.roles.cache.has(roleId)
+            );
             const hasModRole = member.roles.cache.has(this.config.modRoleId);
             const hasAdminPerms = member.permissions.has(PermissionFlagsBits.Administrator);
             const hasManageMessages = member.permissions.has(PermissionFlagsBits.ManageMessages);
@@ -356,7 +358,9 @@ class ModerationSystem {
 
     // Check if user has moderation permissions
     hasModPermissions(member) {
-        const hasAdminRole = member.roles.cache.has(this.config.adminRoleId);
+        const hasAdminRole = this.config.adminRoleIds.some(roleId => 
+            member.roles.cache.has(roleId)
+        );
         const hasModRole = member.roles.cache.has(this.config.modRoleId);
         const hasAdminPerms = member.permissions.has(PermissionFlagsBits.Administrator);
         const hasModeratePerms = member.permissions.has(PermissionFlagsBits.ModerateMembers);
@@ -366,7 +370,9 @@ class ModerationSystem {
 
     // Check if user has admin permissions
     hasAdminPermissions(member) {
-        const hasAdminRole = member.roles.cache.has(this.config.adminRoleId);
+        const hasAdminRole = this.config.adminRoleIds.some(roleId => 
+            member.roles.cache.has(roleId)
+        );
         const hasAdminPerms = member.permissions.has(PermissionFlagsBits.Administrator);
 
         return hasAdminRole || hasAdminPerms;

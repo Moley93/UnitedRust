@@ -18,8 +18,8 @@ const config = {
     // Welcome system
     welcomeChannelId: process.env.WELCOME_CHANNEL_ID || process.env["WELCOME_CHANNEL_ID"] || "",
 
-    // Role IDs
-    adminRoleId: "1370106309503877220",
+    // Role IDs - Updated to support multiple admin roles
+    adminRoleIds: ["1370106309503877220", "1376238625276166204"], // Admin and Dev roles
     modRoleId: "1370145215536562195",
 
     // Server config

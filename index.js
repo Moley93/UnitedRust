@@ -328,7 +328,11 @@ async function handleSlashCommand(interaction) {
 
             // Ticket Commands
             case "setup-tickets":
-                if (!member.permissions.has(PermissionFlagsBits.Administrator)) {
+                // Check if user has any admin role or admin permissions
+                const hasAdminRole = config.adminRoleIds.some(roleId => 
+                    member.roles.cache.has(roleId)
+                );
+                if (!hasAdminRole && !member.permissions.has(PermissionFlagsBits.Administrator)) {
                     return interaction.reply({
                         content: "❌ You need Administrator permissions to use this command.",
                         ephemeral: true,
@@ -381,7 +385,11 @@ async function handleSlashCommand(interaction) {
                 break;
 
             case "test-systems":
-                if (!member.permissions.has(PermissionFlagsBits.Administrator)) {
+                // Check if user has any admin role or admin permissions
+                const hasAdminRoleForTest = config.adminRoleIds.some(roleId => 
+                    member.roles.cache.has(roleId)
+                );
+                if (!hasAdminRoleForTest && !member.permissions.has(PermissionFlagsBits.Administrator)) {
                     return interaction.reply({
                         content: "❌ You need Administrator permissions to use this command.",
                         ephemeral: true,

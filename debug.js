@@ -43,13 +43,14 @@ class DebugSystem {
                 inline: false,
             });
 
-            // Check admin role
-            const adminRole = guild.roles.cache.get(this.config.adminRoleId);
+            // Check admin roles (multiple)
+            const adminRoles = this.config.adminRoleIds.map(roleId => {
+                const role = guild.roles.cache.get(roleId);
+                return role ? `✅ ${role.name} (${role.id})` : `❌ Not found (${roleId})`;
+            });
             checks.push({
-                name: "👑 Admin Role",
-                value: adminRole
-                    ? `✅ ${adminRole.name} (${adminRole.id})`
-                    : `❌ Not found (${this.config.adminRoleId})`,
+                name: "👑 Admin Roles",
+                value: adminRoles.join('\n'),
                 inline: false,
             });
 
@@ -310,7 +311,7 @@ class DebugSystem {
                 welcome: this.config.welcomeChannelId || "Not configured"
             },
             roles: {
-                admin: this.config.adminRoleId,
+                admins: this.config.adminRoleIds,
                 mod: this.config.modRoleId,
                 moderator: this.config.moderatorRoleId
             },
