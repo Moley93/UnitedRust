@@ -11,6 +11,7 @@ const GiveawaySystem = require("./giveaway");
 const ModerationSystem = require("./moderation");
 const RulesSystem = require("./rules");
 const DebugSystem = require("./debug");
+const TeamManagementSystem = require("./team");
 const CommandManager = require("./commands");
 
 // Initialize Discord client
@@ -31,6 +32,7 @@ let giveawaySystem;
 let moderationSystem;
 let rulesSystem;
 let debugSystem;
+let teamSystem;
 let commandManager;
 
 // Bot ready event
@@ -52,6 +54,7 @@ client.once("ready", async () => {
     moderationSystem = new ModerationSystem(client, config);
     rulesSystem = new RulesSystem();
     debugSystem = new DebugSystem(client, config);
+    teamSystem = new TeamManagementSystem(client, config);
     commandManager = new CommandManager(config);
 
     console.log(`🔧 Next ticket number: ${ticketSystem.ticketCounter}`);
@@ -72,6 +75,7 @@ client.once("ready", async () => {
     console.log("- Moderation System: ✅ Active");
     console.log("- Rules System: ✅ Active");
     console.log("- Debug System: ✅ Active");
+    console.log("- Team System: ✅ Active");
 
     // Log system info
     debugSystem.logSystemInfo();
@@ -96,7 +100,17 @@ async function handleButtonInteraction(interaction) {
     const { customId } = interaction;
 
     try {
-        if (customId === "report_player") {
+        // Team management button interactions
+        if (customId.startsWith("confirm_leave_") || 
+            customId === "cancel_leave" || 
+            customId.startsWith("regenerate_invite_") || 
+            customId.startsWith("toggle_invites_") ||
+            customId.startsWith("confirm_transfer_") ||
+            customId === "cancel_transfer") {
+            await teamSystem.handleButtonInteraction(interaction);
+        }
+        // Ticket system button interactions
+        else if (customId === "report_player") {
             await ticketSystem.createTicket(interaction, "player");
         } else if (customId === "report_staff") {
             await ticketSystem.createTicket(interaction, "staff");
@@ -109,7 +123,9 @@ async function handleButtonInteraction(interaction) {
                 content: "❌ Ticket closure cancelled.",
                 components: [],
             });
-        } else if (customId.startsWith("purge_confirm_") || customId === "purge_cancel") {
+        }
+        // Moderation system button interactions
+        else if (customId.startsWith("purge_confirm_") || customId === "purge_cancel") {
             await moderationSystem.handlePurgeButtons(interaction);
         }
     } catch (error) {
@@ -137,6 +153,55 @@ async function handleSlashCommand(interaction) {
             // Giveaway Commands
             case "send-giveaway":
                 await giveawaySystem.handleSendGiveawayCommand(interaction);
+                break;
+
+            // Team Management Commands
+            case "team":
+                const subcommand = interaction.options.getSubcommand();
+                
+                switch (subcommand) {
+                    case "create":
+                        await teamSystem.handleCreateTeamCommand(interaction);
+                        break;
+                        
+                    case "join":
+                        await teamSystem.handleJoinTeamCommand(interaction);
+                        break;
+                        
+                    case "leave":
+                        await teamSystem.handleLeaveTeamCommand(interaction);
+                        break;
+                        
+                    case "info":
+                        await teamSystem.handleTeamInfoCommand(interaction);
+                        break;
+                        
+                    case "list":
+                        await teamSystem.handleListTeamsCommand(interaction);
+                        break;
+                        
+                    case "invite":
+                        await teamSystem.handleInviteUserCommand(interaction);
+                        break;
+                        
+                    case "kick":
+                        await teamSystem.handleKickMemberCommand(interaction);
+                        break;
+                        
+                    case "transfer":
+                        await teamSystem.handleTransferLeadershipCommand(interaction);
+                        break;
+                        
+                    case "disband":
+                        await teamSystem.handleDisbandTeamCommand(interaction);
+                        break;
+                        
+                    default:
+                        await interaction.reply({
+                            content: "❌ Unknown team subcommand.",
+                            ephemeral: true,
+                        });
+                }
                 break;
 
             // Moderation Commands
@@ -461,6 +526,7 @@ function createHelpEmbed(category) {
             "📋 **Rules** - `/help category:rules`\n" +
             "🚫 **Curfew** - `/help category:curfew`\n" +
             "🎁 **Giveaway** - `/help category:giveaway`\n" +
+            "👥 **Teams** - `/help category:team`\n" +
             "🔧 **Debug** - `/help category:debug`\n\n" +
             "Use `/help category:[name]` to see commands in each category."
         );
@@ -520,6 +586,22 @@ function createHelpEmbed(category) {
                     );
                 break;
 
+            case "team":
+                embed.setTitle("👥 Team Management Commands")
+                    .setDescription("Commands for creating and managing teams")
+                    .addFields(
+                        { name: "/team create", value: "Create a new team", inline: false },
+                        { name: "/team join", value: "Join a team with invite code", inline: false },
+                        { name: "/team leave", value: "Leave your current team", inline: false },
+                        { name: "/team info", value: "View team information and settings", inline: false },
+                        { name: "/team list", value: "List all active teams", inline: false },
+                        { name: "/team invite", value: "Directly invite a user (Leader only)", inline: false },
+                        { name: "/team kick", value: "Remove a team member (Leader only)", inline: false },
+                        { name: "/team transfer", value: "Transfer leadership (Leader only)", inline: false },
+                        { name: "/team disband", value: "Force disband a team (Admin only)", inline: false }
+                    );
+                break;
+
             case "debug":
                 embed.setTitle("🔧 Debug Commands")
                     .setDescription("Commands for debugging and system status")
@@ -554,6 +636,7 @@ app.get("/", (req, res) => {
         bot_status: client.user ? "Online" : "Connecting...",
         guilds: client.guilds.cache.size,
         tickets: ticketSystem ? ticketSystem.tickets.size : 0,
+        teams: teamSystem ? teamSystem.getTeamStats().totalTeams : 0,
         features: [
             "Raid Curfew",
             "Ticket System", 
@@ -561,7 +644,8 @@ app.get("/", (req, res) => {
             "Playtime Giveaway",
             "Welcome Messages",
             "Message Purge System",
-            "Advanced Moderation"
+            "Advanced Moderation",
+            "Team Management"
         ],
         systems: {
             curfew: "✅ Active",
@@ -570,7 +654,8 @@ app.get("/", (req, res) => {
             giveaway: "✅ Active",
             moderation: "✅ Active",
             rules: "✅ Active",
-            debug: "✅ Active"
+            debug: "✅ Active",
+            teams: "✅ Active"
         }
     });
 });
@@ -585,7 +670,9 @@ app.get("/health", (req, res) => {
         timestamp: new Date().toISOString(),
         raid_status: curfewSystem ? (curfewSystem.isRaidingAllowed() ? "allowed" : "not_allowed") : "unknown",
         next_ticket: ticketSystem ? ticketSystem.ticketCounter : 0,
-        systems_active: 7,
+        total_teams: teamSystem ? teamSystem.getTeamStats().totalTeams : 0,
+        total_players_in_teams: teamSystem ? teamSystem.getTeamStats().totalPlayers : 0,
+        systems_active: 8,
         memory_usage: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + "MB"
     });
 });
@@ -633,6 +720,7 @@ console.log("🎁 Giveaway System: ENABLED");
 console.log("🛡️ Moderation System: ENABLED");
 console.log("📋 Rules System: ENABLED");
 console.log("🔧 Debug System: ENABLED");
+console.log("👥 Team System: ENABLED");
 
 // Validate configuration and login
 if (validateConfig()) {

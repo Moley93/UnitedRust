@@ -208,6 +208,96 @@ class CommandManager {
                 .setName("server-info")
                 .setDescription("Get information about the server"),
 
+            // Team Management Commands
+            new SlashCommandBuilder()
+                .setName("team")
+                .setDescription("Team management commands")
+                .addSubcommand(subcommand =>
+                    subcommand
+                        .setName("create")
+                        .setDescription("Create a new team")
+                        .addStringOption(option =>
+                            option
+                                .setName("name")
+                                .setDescription("Team name (2-20 characters)")
+                                .setRequired(true)
+                                .setMinLength(2)
+                                .setMaxLength(20)
+                        )
+                )
+                .addSubcommand(subcommand =>
+                    subcommand
+                        .setName("join")
+                        .setDescription("Join a team using invite code")
+                        .addStringOption(option =>
+                            option
+                                .setName("code")
+                                .setDescription("Team invite code")
+                                .setRequired(true)
+                                .setMinLength(6)
+                                .setMaxLength(6)
+                        )
+                )
+                .addSubcommand(subcommand =>
+                    subcommand
+                        .setName("leave")
+                        .setDescription("Leave your current team")
+                )
+                .addSubcommand(subcommand =>
+                    subcommand
+                        .setName("info")
+                        .setDescription("View your team information and management options")
+                )
+                .addSubcommand(subcommand =>
+                    subcommand
+                        .setName("list")
+                        .setDescription("List all active teams")
+                )
+                .addSubcommand(subcommand =>
+                    subcommand
+                        .setName("invite")
+                        .setDescription("Directly invite a user to your team (Leader only)")
+                        .addUserOption(option =>
+                            option
+                                .setName("user")
+                                .setDescription("User to invite to your team")
+                                .setRequired(true)
+                        )
+                )
+                .addSubcommand(subcommand =>
+                    subcommand
+                        .setName("kick")
+                        .setDescription("Remove a member from your team (Leader only)")
+                        .addUserOption(option =>
+                            option
+                                .setName("user")
+                                .setDescription("User to remove from the team")
+                                .setRequired(true)
+                        )
+                )
+                .addSubcommand(subcommand =>
+                    subcommand
+                        .setName("transfer")
+                        .setDescription("Transfer team leadership to another member (Leader only)")
+                        .addUserOption(option =>
+                            option
+                                .setName("user")
+                                .setDescription("User to transfer leadership to")
+                                .setRequired(true)
+                        )
+                )
+                .addSubcommand(subcommand =>
+                    subcommand
+                        .setName("disband")
+                        .setDescription("Force disband a team (Admin only)")
+                        .addStringOption(option =>
+                            option
+                                .setName("name")
+                                .setDescription("Team name to disband")
+                                .setRequired(true)
+                        )
+                ),
+
             new SlashCommandBuilder()
                 .setName("help")
                 .setDescription("Get help with bot commands")
@@ -222,7 +312,8 @@ class CommandManager {
                             { name: "Rules", value: "rules" },
                             { name: "Curfew", value: "curfew" },
                             { name: "Giveaway", value: "giveaway" },
-                            { name: "Debug", value: "debug" }
+                            { name: "Debug", value: "debug" },
+                            { name: "Teams", value: "team" }
                         )
                 )
         ];
@@ -310,6 +401,9 @@ class CommandManager {
             ],
             utility: [
                 "server-info", "help"
+            ],
+            team: [
+                "team"
             ]
         };
     }

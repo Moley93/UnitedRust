@@ -14,6 +14,7 @@ const config = {
     ticketCategoryId: process.env.TICKET_CATEGORY_ID || process.env["TICKET_CATEGORY_ID"] || "",
     moderatorRoleId: process.env.MODERATOR_ROLE_ID || process.env["MODERATOR_ROLE_ID"] || "",
     ticketChannelId: process.env.TICKET_CHANNEL_ID || process.env["TICKET_CHANNEL_ID"] || "",
+    teamCategoryId: process.env.TEAM_CATEGORY_ID || process.env["TEAM_CATEGORY_ID"] || "",
 
     // Welcome system
     welcomeChannelId: process.env.WELCOME_CHANNEL_ID || process.env["WELCOME_CHANNEL_ID"] || "",
