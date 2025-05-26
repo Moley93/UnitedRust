@@ -197,7 +197,7 @@ class TicketSystem {
 
             console.log(`🏗️ Creating channel: ${channelName}`);
 
-            // Set permissions based on ticket type
+            // Set base permissions for everyone, user, and bot
             let permissionOverwrites = [
                 {
                     id: guild.roles.everyone.id,
@@ -222,13 +222,13 @@ class TicketSystem {
                 },
             ];
 
-            if (ticketType === "staff") {
-                const adminRole = guild.roles.cache.find((role) =>
-                    role.permissions.has(PermissionFlagsBits.Administrator)
-                );
+            // Add admin role permissions - using configured admin role IDs
+            for (const adminRoleId of this.config.adminRoleIds) {
+                const adminRole = guild.roles.cache.get(adminRoleId);
                 if (adminRole) {
+                    console.log(`✅ Found admin role: ${adminRole.name} (${adminRole.id})`);
                     permissionOverwrites.push({
-                        id: adminRole.id,
+                        id: adminRoleId,
                         allow: [
                             PermissionFlagsBits.ViewChannel,
                             PermissionFlagsBits.SendMessages,
@@ -236,33 +236,31 @@ class TicketSystem {
                             PermissionFlagsBits.ManageChannels,
                         ],
                     });
+                } else {
+                    console.warn(`⚠️ Admin role ID ${adminRoleId} not found in guild`);
                 }
-            } else {
-                const adminRole = guild.roles.cache.find((role) =>
-                    role.permissions.has(PermissionFlagsBits.Administrator)
-                );
-                if (adminRole) {
-                    permissionOverwrites.push({
-                        id: adminRole.id,
-                        allow: [
-                            PermissionFlagsBits.ViewChannel,
-                            PermissionFlagsBits.SendMessages,
-                            PermissionFlagsBits.ReadMessageHistory,
-                            PermissionFlagsBits.ManageChannels,
-                        ],
-                    });
-                }
-
-                permissionOverwrites.push({
-                    id: this.config.moderatorRoleId,
-                    allow: [
-                        PermissionFlagsBits.ViewChannel,
-                        PermissionFlagsBits.SendMessages,
-                        PermissionFlagsBits.ReadMessageHistory,
-                        PermissionFlagsBits.ManageChannels,
-                    ],
-                });
             }
+
+            // For player reports, also add moderator role permissions
+            if (ticketType === "player") {
+                const moderatorRole = guild.roles.cache.get(this.config.moderatorRoleId);
+                if (moderatorRole) {
+                    console.log(`✅ Found moderator role: ${moderatorRole.name} (${moderatorRole.id})`);
+                    permissionOverwrites.push({
+                        id: this.config.moderatorRoleId,
+                        allow: [
+                            PermissionFlagsBits.ViewChannel,
+                            PermissionFlagsBits.SendMessages,
+                            PermissionFlagsBits.ReadMessageHistory,
+                            PermissionFlagsBits.ManageChannels,
+                        ],
+                    });
+                } else {
+                    console.warn(`⚠️ Moderator role ID ${this.config.moderatorRoleId} not found in guild`);
+                }
+            }
+
+            console.log(`🔐 Permission overwrites configured:`, permissionOverwrites.length);
 
             // Create ticket channel
             const ticketChannel = await guild.channels.create({
@@ -303,10 +301,30 @@ class TicketSystem {
             let descriptionText = "";
 
             if (ticketType === "staff") {
-                pingText += " | Admins will be notified";
+                // For staff reports, ping admin roles
+                const adminMentions = this.config.adminRoleIds
+                    .map(roleId => {
+                        const role = guild.roles.cache.get(roleId);
+                        return role ? `<@&${roleId}>` : null;
+                    })
+                    .filter(mention => mention !== null);
+                
+                if (adminMentions.length > 0) {
+                    pingText += ` | ${adminMentions.join(' ')}`;
+                } else {
+                    pingText += " | Admins will be notified";
+                }
+                
                 descriptionText = `Hello ${user}! Thank you for creating a **staff report**.\n\n**Please provide detailed information about:**\n• Which staff member(s) are involved\n• What happened (with evidence if possible)\n• When this occurred\n\nThis ticket is **admin-only** for confidentiality.`;
             } else {
-                pingText += ` | <@&${this.config.moderatorRoleId}>`;
+                // For player reports, ping moderator role
+                const moderatorRole = guild.roles.cache.get(this.config.moderatorRoleId);
+                if (moderatorRole) {
+                    pingText += ` | <@&${this.config.moderatorRoleId}>`;
+                } else {
+                    pingText += " | Moderators will be notified";
+                }
+                
                 descriptionText = `Hello ${user}! Thank you for creating a **player report**.\n\n**Please provide detailed information about:**\n• Which player(s) you're reporting\n• What rule(s) were broken\n• Evidence (screenshots, etc.)\n• When this occurred\n\nA member of our moderation team will be with you shortly.`;
             }
 
@@ -345,8 +363,9 @@ class TicketSystem {
             console.log(`📩 ${ticketTypeText} #${ticketNumber} created successfully by ${user.tag} (${user.id})`);
         } catch (error) {
             console.error("❌ Error creating ticket:", error);
+            console.error("❌ Error stack:", error.stack);
             await interaction.editReply({
-                content: "❌ There was an error creating the ticket. Please try again or contact an administrator.",
+                content: `❌ There was an error creating the ticket. Please try again or contact an administrator.\n\nError details: ${error.message}`,
             });
         }
     }
