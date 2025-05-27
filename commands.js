@@ -15,6 +15,15 @@ class CommandManager {
                 .setName("curfew")
                 .setDescription("Check if raiding is currently allowed or when it will be allowed again"),
 
+            // Wipe Countdown Commands
+            new SlashCommandBuilder()
+                .setName("wipe")
+                .setDescription("Check the countdown to the next server wipe"),
+
+            new SlashCommandBuilder()
+                .setName("send-wipe-announcement")
+                .setDescription("Manually send the wipe countdown announcement (Admin only)"),
+
             // Playtime Giveaway Commands
             new SlashCommandBuilder()
                 .setName("send-giveaway")
@@ -313,7 +322,8 @@ class CommandManager {
                             { name: "Curfew", value: "curfew" },
                             { name: "Giveaway", value: "giveaway" },
                             { name: "Debug", value: "debug" },
-                            { name: "Teams", value: "team" }
+                            { name: "Teams", value: "team" },
+                            { name: "Wipe", value: "wipe" }
                         )
                 )
         ];
@@ -404,6 +414,9 @@ class CommandManager {
             ],
             team: [
                 "team"
+            ],
+            wipe: [
+                "wipe", "send-wipe-announcement"
             ]
         };
     }
