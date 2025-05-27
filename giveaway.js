@@ -36,11 +36,6 @@ class GiveawaySystem {
                         inline: true,
                     },
                     {
-                        name: "🎰 Mystery Loot",
-                        value: "These mystery loot prizes are completely random – They could be worth hundreds, or they could be £2 skins... **That's the thrill of it** — you've got to be in it to win it!",
-                        inline: false,
-                    },
-                    {
                         name: "⏰ When?",
                         value: "The winners will be revealed at the **end of the current wipe** — make sure your grind time counts and don't AFK your way out of glory!",
                         inline: false,

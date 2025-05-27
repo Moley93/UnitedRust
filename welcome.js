@@ -29,8 +29,7 @@ class WelcomeSystem {
                     `• Friendly community of Rust enthusiasts\n` +
                     `• Regular events and giveaways\n\n` +
                     `**📋 Getting Started:**\n` +
-                    `• Check out our server rules with \`/serverrules\`\n` +
-                    `• Read Discord rules with \`/discordrules\`\n` +
+                    `• Make sure you read the server rules!\n` +
                     `• Join voice chat and meet the community\n` +
                     `• Have questions? Open a ticket in our support channel!\n\n` +
                     `**🎯 Ready to dominate the battlefield? Let's go!**`

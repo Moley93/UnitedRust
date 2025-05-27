@@ -164,9 +164,10 @@ class CurfewSystem {
 
     // Schedule curfew reminders
     scheduleCurfewReminders() {
-        // Schedule curfew start reminder (23:30 UTC = 23:30 GMT)
+        // Schedule curfew start reminder (22:30 UTC = 23:30 GMT)
+        // This is 30 minutes before 00:00 GMT curfew start
         cron.schedule(
-            "30 23 * * *",
+            "30 22 * * *",
             () => {
                 console.log("⏰ Triggering curfew start reminder...");
                 this.sendCurfewStartReminder();
@@ -175,6 +176,7 @@ class CurfewSystem {
         );
 
         // Schedule curfew end reminder (06:30 UTC = 07:30 GMT)
+        // This is 30 minutes before 08:00 GMT curfew end
         cron.schedule(
             "30 6 * * *",
             () => {
@@ -185,7 +187,7 @@ class CurfewSystem {
         );
 
         console.log("🕒 Curfew reminders scheduled successfully!");
-        console.log("- Curfew start reminder: 23:30 UTC (00:30 GMT) daily");
+        console.log("- Curfew start reminder: 22:30 UTC (23:30 GMT) daily");
         console.log("- Curfew end reminder: 06:30 UTC (07:30 GMT) daily");
     }
 }

@@ -5,7 +5,11 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "node index.js"
+    "dev": "node index.js",
+    "validate": "node validate-config.js",
+    "validate-detailed": "node validate-config.js --show-unused",
+    "test-config": "node validate-config.js --test-connections",
+    "setup": "node validate-config.js && echo 'Configuration valid! Starting bot...' && node index.js"
   },
   "dependencies": {
     "discord.js": "^14.14.1",
@@ -21,7 +25,8 @@
     "bot",
     "rust",
     "gaming",
-    "moderation"
+    "moderation",
+    "unitedrust"
   ],
   "author": "UnitedRust",
   "license": "MIT"
