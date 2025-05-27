@@ -15,6 +15,15 @@ class CommandManager {
                 .setName("curfew")
                 .setDescription("Check if raiding is currently allowed or when it will be allowed again"),
 
+            // Wipe Countdown Commands
+            new SlashCommandBuilder()
+                .setName("wipe")
+                .setDescription("Check the countdown to the next server wipe"),
+
+            new SlashCommandBuilder()
+                .setName("send-wipe-announcement")
+                .setDescription("Manually send the wipe countdown announcement (Admin only)"),
+
             // Playtime Giveaway Commands
             new SlashCommandBuilder()
                 .setName("send-giveaway")
@@ -208,7 +217,7 @@ class CommandManager {
                 .setName("server-info")
                 .setDescription("Get information about the server"),
 
-            // Team Management Commands
+            // Team Management Commands (Updated - removed /team join)
             new SlashCommandBuilder()
                 .setName("team")
                 .setDescription("Team management commands")
@@ -227,26 +236,13 @@ class CommandManager {
                 )
                 .addSubcommand(subcommand =>
                     subcommand
-                        .setName("join")
-                        .setDescription("Join a team using invite code")
-                        .addStringOption(option =>
-                            option
-                                .setName("code")
-                                .setDescription("Team invite code")
-                                .setRequired(true)
-                                .setMinLength(6)
-                                .setMaxLength(6)
-                        )
-                )
-                .addSubcommand(subcommand =>
-                    subcommand
                         .setName("leave")
                         .setDescription("Leave your current team")
                 )
                 .addSubcommand(subcommand =>
                     subcommand
                         .setName("info")
-                        .setDescription("View your team information and management options")
+                        .setDescription("View your team information")
                 )
                 .addSubcommand(subcommand =>
                     subcommand
@@ -256,7 +252,7 @@ class CommandManager {
                 .addSubcommand(subcommand =>
                     subcommand
                         .setName("invite")
-                        .setDescription("Directly invite a user to your team (Leader only)")
+                        .setDescription("Invite a user to your team (Leader only)")
                         .addUserOption(option =>
                             option
                                 .setName("user")
@@ -313,7 +309,8 @@ class CommandManager {
                             { name: "Curfew", value: "curfew" },
                             { name: "Giveaway", value: "giveaway" },
                             { name: "Debug", value: "debug" },
-                            { name: "Teams", value: "team" }
+                            { name: "Teams", value: "team" },
+                            { name: "Wipe", value: "wipe" }
                         )
                 )
         ];
@@ -404,6 +401,9 @@ class CommandManager {
             ],
             team: [
                 "team"
+            ],
+            wipe: [
+                "wipe", "send-wipe-announcement"
             ]
         };
     }

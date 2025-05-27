@@ -17,9 +17,11 @@ class TeamManagementSystem {
         this.teams = new Map();
         this.playerTeams = new Map(); // Maps userId to teamId
         this.teamVoiceChannels = new Map(); // Maps teamId to voice channel ID
+        this.pendingInvites = new Map(); // Maps inviteId to invitation data
         this.maxTeamSize = 6; // Configurable max team size
         this.teamCategoryId = config.teamCategoryId || null; // Voice channel category for teams
         this.loadTeams();
+        this.loadPendingInvites();
     }
 
     // Load teams from file
@@ -63,6 +65,37 @@ class TeamManagementSystem {
         }
     }
 
+    // Load pending invites from file
+    loadPendingInvites() {
+        try {
+            if (!fs.existsSync("pending_invites.json")) {
+                this.savePendingInvites();
+                return;
+            }
+
+            const data = fs.readFileSync("pending_invites.json", "utf8");
+            if (!data.trim()) {
+                this.savePendingInvites();
+                return;
+            }
+
+            const invitesData = JSON.parse(data);
+            
+            Object.entries(invitesData).forEach(([inviteId, inviteData]) => {
+                this.pendingInvites.set(inviteId, {
+                    ...inviteData,
+                    createdAt: new Date(inviteData.createdAt),
+                    expiresAt: new Date(inviteData.expiresAt)
+                });
+            });
+
+            console.log(`✅ Loaded ${this.pendingInvites.size} pending invites`);
+        } catch (error) {
+            console.error("❌ Error loading pending invites:", error);
+            this.savePendingInvites();
+        }
+    }
+
     // Save teams to file
     saveTeams() {
         try {
@@ -89,9 +122,24 @@ class TeamManagementSystem {
         }
     }
 
-    // Generate unique team invite code
-    generateInviteCode() {
-        return crypto.randomBytes(3).toString('hex').toUpperCase();
+    // Save pending invites to file
+    savePendingInvites() {
+        try {
+            const invitesObj = {};
+            this.pendingInvites.forEach((value, key) => {
+                invitesObj[key] = value;
+            });
+
+            fs.writeFileSync("pending_invites.json", JSON.stringify(invitesObj, null, 2));
+            console.log("✅ Pending invites saved successfully");
+        } catch (error) {
+            console.error("❌ Error saving pending invites:", error);
+        }
+    }
+
+    // Generate unique invite ID
+    generateInviteId() {
+        return crypto.randomBytes(16).toString('hex');
     }
 
     // Create a new team
@@ -127,9 +175,8 @@ class TeamManagementSystem {
                 });
             }
 
-            // Generate unique team ID and invite code
+            // Generate unique team ID
             const teamId = `team_${Date.now()}_${user.id}`;
-            const inviteCode = this.generateInviteCode();
 
             // Create team data
             const teamData = {
@@ -137,7 +184,6 @@ class TeamManagementSystem {
                 name: teamName,
                 leader: user.id,
                 members: [user.id],
-                inviteCode: inviteCode,
                 createdAt: new Date(),
                 lastActivity: new Date(),
                 stats: {
@@ -147,7 +193,6 @@ class TeamManagementSystem {
                     totalDeaths: 0
                 },
                 settings: {
-                    allowInvites: true,
                     publicStats: true
                 }
             };
@@ -177,13 +222,12 @@ class TeamManagementSystem {
                 .addFields(
                     { name: "👥 Team Name", value: teamName, inline: true },
                     { name: "👑 Team Leader", value: `${user}`, inline: true },
-                    { name: "🎫 Invite Code", value: `\`${inviteCode}\``, inline: true },
                     { name: "📊 Members", value: `1/${this.maxTeamSize}`, inline: true },
                     { name: "📅 Created", value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true },
                     { name: "🆔 Team ID", value: `\`${teamId}\``, inline: true },
                     { 
                         name: "📋 Next Steps", 
-                        value: `• Share invite code \`${inviteCode}\` with friends\n• Use \`/team info\` to manage your team\n• Use \`/team invite @user\` to directly invite members${voiceChannelMention}`, 
+                        value: `• Use \`/team invite @user\` to invite friends to your team\n• Use \`/team info\` to manage your team\n• Invited users will receive a DM with accept/deny buttons${voiceChannelMention}`, 
                         inline: false 
                     }
                 )
@@ -193,7 +237,7 @@ class TeamManagementSystem {
 
             await interaction.reply({ embeds: [embed] });
 
-            console.log(`✅ Team "${teamName}" created by ${user.tag} with code ${inviteCode}`);
+            console.log(`✅ Team "${teamName}" created by ${user.tag}`);
         } catch (error) {
             console.error("❌ Error creating team:", error);
             await interaction.reply({
@@ -203,27 +247,42 @@ class TeamManagementSystem {
         }
     }
 
-    // Join a team using invite code
-    async handleJoinTeamCommand(interaction) {
+    // Direct invite a user to team (leader only)
+    async handleInviteUserCommand(interaction) {
         try {
-            const { user } = interaction;
-            const inviteCode = interaction.options.getString("code").toUpperCase();
+            const { user, guild } = interaction;
+            const targetUser = interaction.options.getUser("user");
+            const teamId = this.playerTeams.get(user.id);
 
-            // Check if user is already in a team
-            if (this.playerTeams.has(user.id)) {
-                const currentTeamId = this.playerTeams.get(user.id);
-                const currentTeam = this.teams.get(currentTeamId);
+            if (!teamId) {
                 return interaction.reply({
-                    content: `❌ You're already in team "${currentTeam?.name || 'Unknown'}". Use \`/team leave\` first.`,
+                    content: "❌ You're not in any team.",
                     ephemeral: true,
                 });
             }
 
-            // Find team by invite code
-            const team = Array.from(this.teams.values()).find(t => t.inviteCode === inviteCode);
+            const team = this.teams.get(teamId);
             if (!team) {
                 return interaction.reply({
-                    content: "❌ Invalid invite code. Please check the code and try again.",
+                    content: "❌ Team data not found.",
+                    ephemeral: true,
+                });
+            }
+
+            // Check if user is team leader
+            if (team.leader !== user.id) {
+                return interaction.reply({
+                    content: "❌ Only the team leader can invite users.",
+                    ephemeral: true,
+                });
+            }
+
+            // Check if target user is already in a team
+            if (this.playerTeams.has(targetUser.id)) {
+                const targetTeamId = this.playerTeams.get(targetUser.id);
+                const targetTeam = this.teams.get(targetTeamId);
+                return interaction.reply({
+                    content: `❌ ${targetUser} is already in team "${targetTeam?.name || 'Unknown'}".`,
                     ephemeral: true,
                 });
             }
@@ -231,81 +290,283 @@ class TeamManagementSystem {
             // Check if team is full
             if (team.members.length >= this.maxTeamSize) {
                 return interaction.reply({
-                    content: `❌ Team "${team.name}" is full (${this.maxTeamSize}/${this.maxTeamSize} members).`,
+                    content: `❌ Your team is full (${this.maxTeamSize}/${this.maxTeamSize} members).`,
                     ephemeral: true,
                 });
             }
 
-            // Check if invites are allowed
-            if (!team.settings.allowInvites) {
+            // Check if there's already a pending invite for this user to this team
+            const existingInvite = Array.from(this.pendingInvites.values()).find(
+                invite => invite.teamId === teamId && invite.targetUserId === targetUser.id && invite.status === 'pending'
+            );
+            
+            if (existingInvite) {
                 return interaction.reply({
-                    content: `❌ Team "${team.name}" is not accepting new members.`,
+                    content: `⚠️ ${targetUser} already has a pending invitation to your team.`,
                     ephemeral: true,
                 });
             }
 
-            // Add user to team
-            team.members.push(user.id);
-            team.lastActivity = new Date();
-            this.teams.set(team.id, team);
-            this.playerTeams.set(user.id, team.id);
-            this.saveTeams();
+            // Create invitation
+            const inviteId = this.generateInviteId();
+            const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours from now
 
-            // Update voice channel permissions if it exists
-            const voiceChannelId = this.teamVoiceChannels.get(team.id);
-            if (voiceChannelId) {
-                try {
-                    const voiceChannel = interaction.guild.channels.cache.get(voiceChannelId);
-                    if (voiceChannel) {
-                        await voiceChannel.permissionOverwrites.create(user, {
-                            ViewChannel: true,
-                            Connect: true,
-                            Speak: true
-                        });
-                    }
-                } catch (error) {
-                    console.error("❌ Error updating voice channel permissions:", error);
-                }
-            }
+            const inviteData = {
+                id: inviteId,
+                teamId: teamId,
+                teamName: team.name,
+                inviterId: user.id,
+                inviterTag: user.tag,
+                targetUserId: targetUser.id,
+                targetUserTag: targetUser.tag,
+                guildId: guild.id,
+                status: 'pending',
+                createdAt: new Date(),
+                expiresAt: expiresAt
+            };
 
-            const embed = new EmbedBuilder()
-                .setTitle("✅ Successfully Joined Team!")
-                .setColor(0x00ff00)
-                .addFields(
-                    { name: "👥 Team Name", value: team.name, inline: true },
-                    { name: "👑 Team Leader", value: `<@${team.leader}>`, inline: true },
-                    { name: "📊 Members", value: `${team.members.length}/${this.maxTeamSize}`, inline: true },
-                    { name: "📅 Team Created", value: `<t:${Math.floor(team.createdAt.getTime() / 1000)}:R>`, inline: true }
-                )
-                .setThumbnail(user.displayAvatarURL({ dynamic: true }))
-                .setTimestamp()
-                .setFooter({ text: "UnitedRust Team Management" });
+            this.pendingInvites.set(inviteId, inviteData);
+            this.savePendingInvites();
 
-            await interaction.reply({ embeds: [embed] });
-
-            // Notify team leader
+            // Send invitation DM to target user
             try {
-                const leader = await this.client.users.fetch(team.leader);
-                const dmEmbed = new EmbedBuilder()
-                    .setTitle("👥 New Team Member!")
-                    .setDescription(`${user} (${user.tag}) has joined your team "${team.name}".`)
+                const inviteEmbed = new EmbedBuilder()
+                    .setTitle("👥 Team Invitation!")
+                    .setDescription(`You've been invited to join team **"${team.name}"** by ${user}.`)
                     .setColor(0x00ff00)
                     .addFields(
+                        { name: "👥 Team Name", value: team.name, inline: true },
+                        { name: "👑 Team Leader", value: `${user.tag}`, inline: true },
+                        { name: "📊 Current Members", value: `${team.members.length}/${this.maxTeamSize}`, inline: true },
+                        { name: "📅 Team Created", value: `<t:${Math.floor(team.createdAt.getTime() / 1000)}:R>`, inline: true },
+                        { name: "⏰ Invitation Expires", value: `<t:${Math.floor(expiresAt.getTime() / 1000)}:R>`, inline: false }
+                    )
+                    .setThumbnail(user.displayAvatarURL({ dynamic: true }))
+                    .setTimestamp()
+                    .setFooter({ text: "UnitedRust Team Invitation" });
+
+                const buttons = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId(`accept_invite_${inviteId}`)
+                        .setLabel("✅ Accept")
+                        .setStyle(ButtonStyle.Success),
+                    new ButtonBuilder()
+                        .setCustomId(`deny_invite_${inviteId}`)
+                        .setLabel("❌ Deny")
+                        .setStyle(ButtonStyle.Danger)
+                );
+
+                await targetUser.send({ embeds: [inviteEmbed], components: [buttons] });
+
+                await interaction.reply({
+                    content: `✅ Invitation sent to ${targetUser}! They have 24 hours to respond.`,
+                    ephemeral: true,
+                });
+
+                console.log(`📧 Team invite sent to ${targetUser.tag} for team "${team.name}" by ${user.tag}`);
+            } catch (error) {
+                // Remove the pending invite if we couldn't send the DM
+                this.pendingInvites.delete(inviteId);
+                this.savePendingInvites();
+                
+                console.log("❌ Could not send DM to target user:", error.message);
+                await interaction.reply({
+                    content: `❌ Could not send invitation to ${targetUser}. They may have DMs disabled.`,
+                    ephemeral: true,
+                });
+            }
+
+        } catch (error) {
+            console.error("❌ Error inviting user to team:", error);
+            await interaction.reply({
+                content: "❌ An error occurred while sending the invitation.",
+                ephemeral: true,
+            });
+        }
+    }
+
+    // Handle invitation response buttons
+    async handleInviteResponse(interaction, inviteId, response) {
+        try {
+            const invite = this.pendingInvites.get(inviteId);
+            
+            if (!invite) {
+                return interaction.update({
+                    content: "❌ This invitation has expired or is no longer valid.",
+                    embeds: [],
+                    components: []
+                });
+            }
+
+            // Check if invitation has expired
+            if (new Date() > invite.expiresAt) {
+                this.pendingInvites.delete(inviteId);
+                this.savePendingInvites();
+                
+                return interaction.update({
+                    content: "❌ This invitation has expired.",
+                    embeds: [],
+                    components: []
+                });
+            }
+
+            // Check if the user responding is the target user
+            if (interaction.user.id !== invite.targetUserId) {
+                return interaction.reply({
+                    content: "❌ This invitation is not for you.",
+                    ephemeral: true
+                });
+            }
+
+            const team = this.teams.get(invite.teamId);
+            if (!team) {
+                this.pendingInvites.delete(inviteId);
+                this.savePendingInvites();
+                
+                return interaction.update({
+                    content: "❌ The team no longer exists.",
+                    embeds: [],
+                    components: []
+                });
+            }
+
+            if (response === 'accept') {
+                // Check if user is already in a team
+                if (this.playerTeams.has(interaction.user.id)) {
+                    const currentTeamId = this.playerTeams.get(interaction.user.id);
+                    const currentTeam = this.teams.get(currentTeamId);
+                    
+                    this.pendingInvites.delete(inviteId);
+                    this.savePendingInvites();
+                    
+                    return interaction.update({
+                        content: `❌ You're already in team "${currentTeam?.name || 'Unknown'}". Leave your current team first.`,
+                        embeds: [],
+                        components: []
+                    });
+                }
+
+                // Check if team is now full
+                if (team.members.length >= this.maxTeamSize) {
+                    this.pendingInvites.delete(inviteId);
+                    this.savePendingInvites();
+                    
+                    return interaction.update({
+                        content: `❌ Team "${team.name}" is now full.`,
+                        embeds: [],
+                        components: []
+                    });
+                }
+
+                // Add user to team
+                team.members.push(interaction.user.id);
+                team.lastActivity = new Date();
+                this.teams.set(team.id, team);
+                this.playerTeams.set(interaction.user.id, team.id);
+
+                // Update invitation status
+                invite.status = 'accepted';
+                invite.respondedAt = new Date();
+                this.pendingInvites.set(inviteId, invite);
+                
+                this.saveTeams();
+                this.savePendingInvites();
+
+                // Update voice channel permissions if it exists
+                const voiceChannelId = this.teamVoiceChannels.get(team.id);
+                if (voiceChannelId) {
+                    try {
+                        const guild = this.client.guilds.cache.get(invite.guildId);
+                        if (guild) {
+                            const voiceChannel = guild.channels.cache.get(voiceChannelId);
+                            if (voiceChannel) {
+                                await voiceChannel.permissionOverwrites.create(interaction.user, {
+                                    ViewChannel: true,
+                                    Connect: true,
+                                    Speak: true
+                                });
+                            }
+                        }
+                    } catch (error) {
+                        console.error("❌ Error updating voice channel permissions:", error);
+                    }
+                }
+
+                const acceptEmbed = new EmbedBuilder()
+                    .setTitle("✅ Team Invitation Accepted!")
+                    .setDescription(`You have successfully joined team **"${team.name}"**!`)
+                    .setColor(0x00ff00)
+                    .addFields(
+                        { name: "👥 Team Name", value: team.name, inline: true },
                         { name: "📊 Team Size", value: `${team.members.length}/${this.maxTeamSize}`, inline: true }
                     )
                     .setTimestamp();
 
-                await leader.send({ embeds: [dmEmbed] });
-            } catch (error) {
-                console.log("❌ Could not notify team leader:", error.message);
+                await interaction.update({
+                    embeds: [acceptEmbed],
+                    components: []
+                });
+
+                // Notify team leader
+                try {
+                    const leader = await this.client.users.fetch(team.leader);
+                    const leaderEmbed = new EmbedBuilder()
+                        .setTitle("👥 Team Invitation Accepted!")
+                        .setDescription(`${interaction.user} (${interaction.user.tag}) has joined your team "${team.name}".`)
+                        .setColor(0x00ff00)
+                        .addFields(
+                            { name: "📊 Team Size", value: `${team.members.length}/${this.maxTeamSize}`, inline: true }
+                        )
+                        .setTimestamp();
+
+                    await leader.send({ embeds: [leaderEmbed] });
+                } catch (error) {
+                    console.log("❌ Could not notify team leader:", error.message);
+                }
+
+                console.log(`✅ ${interaction.user.tag} accepted invitation to team "${team.name}"`);
+
+            } else if (response === 'deny') {
+                // Update invitation status
+                invite.status = 'denied';
+                invite.respondedAt = new Date();
+                this.pendingInvites.set(inviteId, invite);
+                this.savePendingInvites();
+
+                const denyEmbed = new EmbedBuilder()
+                    .setTitle("❌ Team Invitation Declined")
+                    .setDescription(`You have declined the invitation to join team **"${team.name}"**.`)
+                    .setColor(0xff0000)
+                    .setTimestamp();
+
+                await interaction.update({
+                    embeds: [denyEmbed],
+                    components: []
+                });
+
+                // Notify team leader
+                try {
+                    const leader = await this.client.users.fetch(team.leader);
+                    const leaderEmbed = new EmbedBuilder()
+                        .setTitle("❌ Team Invitation Declined")
+                        .setDescription(`${interaction.user} (${interaction.user.tag}) has declined your invitation to join team "${team.name}".`)
+                        .setColor(0xff0000)
+                        .setTimestamp();
+
+                    await leader.send({ embeds: [leaderEmbed] });
+                } catch (error) {
+                    console.log("❌ Could not notify team leader:", error.message);
+                }
+
+                console.log(`❌ ${interaction.user.tag} declined invitation to team "${team.name}"`);
             }
 
-            console.log(`✅ ${user.tag} joined team "${team.name}" using code ${inviteCode}`);
         } catch (error) {
-            console.error("❌ Error joining team:", error);
-            await interaction.reply({
-                content: "❌ An error occurred while joining the team.",
-                ephemeral: true,
+            console.error("❌ Error handling invite response:", error);
+            await interaction.update({
+                content: "❌ An error occurred while processing your response.",
+                embeds: [],
+                components: []
             });
         }
     }
@@ -403,6 +664,14 @@ class TeamManagementSystem {
                 // Remove all members from team mapping
                 memberIds.forEach(memberId => {
                     this.playerTeams.delete(memberId);
+                });
+
+                // Cancel all pending invites for this team
+                const teamInvites = Array.from(this.pendingInvites.entries()).filter(
+                    ([_, invite]) => invite.teamId === teamId && invite.status === 'pending'
+                );
+                teamInvites.forEach(([inviteId, _]) => {
+                    this.pendingInvites.delete(inviteId);
                 });
 
                 // Delete team voice channel if it exists
@@ -504,6 +773,7 @@ class TeamManagementSystem {
             }
 
             this.saveTeams();
+            this.savePendingInvites();
 
             await interaction.update({
                 embeds: [resultEmbed],
@@ -590,7 +860,7 @@ class TeamManagementSystem {
 
             if (!teamId) {
                 return interaction.reply({
-                    content: "❌ You're not in any team. Use `/team create` or `/team join` to get started!",
+                    content: "❌ You're not in any team. Use `/team create` or get invited to get started!",
                     ephemeral: true,
                 });
             }
@@ -624,7 +894,6 @@ class TeamManagementSystem {
                 .setTitle(`👥 ${team.name}`)
                 .setColor(0x3498db)
                 .addFields(
-                    { name: "🎫 Invite Code", value: `\`${team.inviteCode}\``, inline: true },
                     { name: "📊 Members", value: `${team.members.length}/${this.maxTeamSize}`, inline: true },
                     { name: "📅 Created", value: `<t:${Math.floor(team.createdAt.getTime() / 1000)}:R>`, inline: true },
                     { name: "👥 Team Members", value: memberList.join('\n'), inline: false }
@@ -654,25 +923,8 @@ class TeamManagementSystem {
                 });
             }
 
-            // Add management buttons if user is team leader
-            let components = [];
-            if (team.leader === user.id) {
-                const buttons = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder()
-                        .setCustomId(`regenerate_invite_${teamId}`)
-                        .setLabel("🔄 New Invite Code")
-                        .setStyle(ButtonStyle.Secondary),
-                    new ButtonBuilder()
-                        .setCustomId(`toggle_invites_${teamId}`)
-                        .setLabel(team.settings.allowInvites ? "🔒 Disable Invites" : "🔓 Enable Invites")
-                        .setStyle(team.settings.allowInvites ? ButtonStyle.Danger : ButtonStyle.Success)
-                );
-                components = [buttons];
-            }
-
             await interaction.reply({ 
                 embeds: [embed], 
-                components: components,
                 ephemeral: true 
             });
 
@@ -680,222 +932,6 @@ class TeamManagementSystem {
             console.error("❌ Error getting team info:", error);
             await interaction.reply({
                 content: "❌ An error occurred while getting team information.",
-                ephemeral: true,
-            });
-        }
-    }
-
-    // Create team voice channel
-    async createTeamVoiceChannel(guild, team) {
-        try {
-            if (!this.teamCategoryId) return null;
-
-            const category = guild.channels.cache.get(this.teamCategoryId);
-            if (!category) {
-                console.error(`❌ Team category not found: ${this.teamCategoryId}`);
-                return null;
-            }
-
-            const voiceChannel = await guild.channels.create({
-                name: `🎤 ${team.name}`,
-                type: ChannelType.GuildVoice,
-                parent: this.teamCategoryId,
-                permissionOverwrites: [
-                    {
-                        id: guild.roles.everyone.id,
-                        deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect],
-                    },
-                    ...team.members.map(memberId => ({
-                        id: memberId,
-                        allow: [
-                            PermissionFlagsBits.ViewChannel,
-                            PermissionFlagsBits.Connect,
-                            PermissionFlagsBits.Speak
-                        ],
-                    }))
-                ],
-            });
-
-            console.log(`✅ Created voice channel for team "${team.name}": ${voiceChannel.name}`);
-            return voiceChannel;
-        } catch (error) {
-            console.error("❌ Error creating team voice channel:", error);
-            return null;
-        }
-    }
-
-    // Handle button interactions
-    async handleButtonInteraction(interaction) {
-        const { customId } = interaction;
-
-        try {
-            if (customId.startsWith("confirm_leave_")) {
-                const teamId = customId.replace("confirm_leave_", "");
-                await this.handleLeaveTeamConfirmation(interaction, teamId);
-            } else if (customId === "cancel_leave") {
-                await interaction.update({
-                    content: "❌ Team leave cancelled.",
-                    embeds: [],
-                    components: [],
-                });
-            } else if (customId.startsWith("regenerate_invite_")) {
-                const teamId = customId.replace("regenerate_invite_", "");
-                await this.handleRegenerateInvite(interaction, teamId);
-            } else if (customId.startsWith("toggle_invites_")) {
-                const teamId = customId.replace("toggle_invites_", "");
-                await this.handleToggleInvites(interaction, teamId);
-            }
-        } catch (error) {
-            console.error("❌ Error handling team button interaction:", error);
-            if (!interaction.replied && !interaction.deferred) {
-                await interaction.reply({
-                    content: "❌ An error occurred while processing your request.",
-                    ephemeral: true,
-                });
-            }
-        }
-    }
-
-    // Regenerate team invite code (leader only)
-    async handleRegenerateInvite(interaction, teamId) {
-        const team = this.teams.get(teamId);
-        if (!team || team.leader !== interaction.user.id) {
-            return interaction.reply({
-                content: "❌ You don't have permission to do this.",
-                ephemeral: true,
-            });
-        }
-
-        const oldCode = team.inviteCode;
-        team.inviteCode = this.generateInviteCode();
-        this.teams.set(teamId, team);
-        this.saveTeams();
-
-        await interaction.reply({
-            content: `✅ New invite code generated!\n**Old Code:** ~~\`${oldCode}\`~~\n**New Code:** \`${team.inviteCode}\``,
-            ephemeral: true,
-        });
-
-        console.log(`🔄 Team "${team.name}" invite code regenerated by ${interaction.user.tag}`);
-    }
-
-    // Toggle team invite permissions (leader only)
-    async handleToggleInvites(interaction, teamId) {
-        const team = this.teams.get(teamId);
-        if (!team || team.leader !== interaction.user.id) {
-            return interaction.reply({
-                content: "❌ You don't have permission to do this.",
-                ephemeral: true,
-            });
-        }
-
-        team.settings.allowInvites = !team.settings.allowInvites;
-        this.teams.set(teamId, team);
-        this.saveTeams();
-
-        const status = team.settings.allowInvites ? "enabled" : "disabled";
-        const emoji = team.settings.allowInvites ? "🔓" : "🔒";
-
-        await interaction.reply({
-            content: `${emoji} Team invites ${status} for "${team.name}".`,
-            ephemeral: true,
-        });
-
-        console.log(`${emoji} Team "${team.name}" invites ${status} by ${interaction.user.tag}`);
-    }
-
-    // Direct invite a user to team (leader only)
-    async handleInviteUserCommand(interaction) {
-        try {
-            const { user, guild } = interaction;
-            const targetUser = interaction.options.getUser("user");
-            const teamId = this.playerTeams.get(user.id);
-
-            if (!teamId) {
-                return interaction.reply({
-                    content: "❌ You're not in any team.",
-                    ephemeral: true,
-                });
-            }
-
-            const team = this.teams.get(teamId);
-            if (!team) {
-                return interaction.reply({
-                    content: "❌ Team data not found.",
-                    ephemeral: true,
-                });
-            }
-
-            // Check if user is team leader
-            if (team.leader !== user.id) {
-                return interaction.reply({
-                    content: "❌ Only the team leader can directly invite users.",
-                    ephemeral: true,
-                });
-            }
-
-            // Check if target user is already in a team
-            if (this.playerTeams.has(targetUser.id)) {
-                const targetTeamId = this.playerTeams.get(targetUser.id);
-                const targetTeam = this.teams.get(targetTeamId);
-                return interaction.reply({
-                    content: `❌ ${targetUser} is already in team "${targetTeam?.name || 'Unknown'}".`,
-                    ephemeral: true,
-                });
-            }
-
-            // Check if team is full
-            if (team.members.length >= this.maxTeamSize) {
-                return interaction.reply({
-                    content: `❌ Your team is full (${this.maxTeamSize}/${this.maxTeamSize} members).`,
-                    ephemeral: true,
-                });
-            }
-
-            // Check if invites are enabled
-            if (!team.settings.allowInvites) {
-                return interaction.reply({
-                    content: "❌ Your team has invites disabled. Enable them first using `/team info`.",
-                    ephemeral: true,
-                });
-            }
-
-            // Send invitation to target user
-            try {
-                const inviteEmbed = new EmbedBuilder()
-                    .setTitle("👥 Team Invitation!")
-                    .setDescription(`You've been invited to join team "${team.name}" by ${user}.`)
-                    .setColor(0x00ff00)
-                    .addFields(
-                        { name: "👥 Team Name", value: team.name, inline: true },
-                        { name: "👑 Team Leader", value: `${user.tag}`, inline: true },
-                        { name: "📊 Current Members", value: `${team.members.length}/${this.maxTeamSize}`, inline: true },
-                        { name: "📅 Team Created", value: `<t:${Math.floor(team.createdAt.getTime() / 1000)}:R>`, inline: true },
-                        { name: "🎫 How to Join", value: `Use \`/team join ${team.inviteCode}\` to accept this invitation!`, inline: false }
-                    )
-                    .setTimestamp()
-                    .setFooter({ text: "UnitedRust Team Invitation" });
-
-                await targetUser.send({ embeds: [inviteEmbed] });
-
-                await interaction.reply({
-                    content: `✅ Invitation sent to ${targetUser}! They can join using code \`${team.inviteCode}\`.`,
-                    ephemeral: true,
-                });
-
-                console.log(`📧 Team invite sent to ${targetUser.tag} for team "${team.name}" by ${user.tag}`);
-            } catch (error) {
-                console.log("❌ Could not send DM to target user:", error.message);
-                await interaction.reply({
-                    content: `⚠️ Could not send DM to ${targetUser}. Share this invite code with them: \`${team.inviteCode}\``,
-                    ephemeral: true,
-                });
-            }
-
-        } catch (error) {
-            console.error("❌ Error inviting user to team:", error);
-            await interaction.reply({
-                content: "❌ An error occurred while sending the invitation.",
                 ephemeral: true,
             });
         }
@@ -1105,7 +1141,7 @@ class TeamManagementSystem {
                     .setDescription(`${oldLeader} has transferred leadership of team "${team.name}" to you.`)
                     .setColor(0x00ff00)
                     .addFields(
-                        { name: "📋 New Responsibilities", value: "• Manage team members\n• Control team settings\n• Invite new members", inline: false }
+                        { name: "📋 New Responsibilities", value: "• Manage team members\n• Invite new members\n• Transfer leadership", inline: false }
                     )
                     .setTimestamp();
 
@@ -1138,68 +1174,6 @@ class TeamManagementSystem {
                 embeds: [],
                 components: [],
             });
-        }
-    }
-
-    // Get team statistics
-    getTeamStats() {
-        const totalTeams = this.teams.size;
-        const totalPlayers = this.playerTeams.size;
-        const averageTeamSize = totalTeams > 0 ? (totalPlayers / totalTeams).toFixed(1) : 0;
-        const fullTeams = Array.from(this.teams.values()).filter(team => team.members.length === this.maxTeamSize).length;
-        
-        return {
-            totalTeams,
-            totalPlayers,
-            averageTeamSize,
-            fullTeams,
-            maxTeamSize: this.maxTeamSize
-        };
-    }
-
-    // Clean up inactive teams (called periodically)
-    async cleanupInactiveTeams(daysInactive = 30) {
-        try {
-            const cutoffDate = new Date();
-            cutoffDate.setDate(cutoffDate.getDate() - daysInactive);
-
-            const inactiveTeams = Array.from(this.teams.values()).filter(team => 
-                team.lastActivity < cutoffDate && team.members.length === 1
-            );
-
-            for (const team of inactiveTeams) {
-                console.log(`🧹 Cleaning up inactive team: ${team.name}`);
-                
-                // Remove player mapping
-                this.playerTeams.delete(team.leader);
-                
-                // Delete voice channel if exists
-                const voiceChannelId = this.teamVoiceChannels.get(team.id);
-                if (voiceChannelId) {
-                    try {
-                        const voiceChannel = this.client.channels.cache.get(voiceChannelId);
-                        if (voiceChannel) {
-                            await voiceChannel.delete();
-                        }
-                        this.teamVoiceChannels.delete(team.id);
-                    } catch (error) {
-                        console.error("❌ Error deleting inactive team voice channel:", error);
-                    }
-                }
-                
-                // Remove team
-                this.teams.delete(team.id);
-            }
-
-            if (inactiveTeams.length > 0) {
-                this.saveTeams();
-                console.log(`🧹 Cleaned up ${inactiveTeams.length} inactive teams`);
-            }
-
-            return inactiveTeams.length;
-        } catch (error) {
-            console.error("❌ Error cleaning up inactive teams:", error);
-            return 0;
         }
     }
 
@@ -1239,6 +1213,14 @@ class TeamManagementSystem {
                 this.playerTeams.delete(memberId);
             });
 
+            // Cancel all pending invites for this team
+            const teamInvites = Array.from(this.pendingInvites.entries()).filter(
+                ([_, invite]) => invite.teamId === team.id && invite.status === 'pending'
+            );
+            teamInvites.forEach(([inviteId, _]) => {
+                this.pendingInvites.delete(inviteId);
+            });
+
             // Delete voice channel if exists
             const voiceChannelId = this.teamVoiceChannels.get(team.id);
             if (voiceChannelId) {
@@ -1256,6 +1238,7 @@ class TeamManagementSystem {
             // Delete team
             this.teams.delete(team.id);
             this.saveTeams();
+            this.savePendingInvites();
 
             // Notify all team members
             const memberNotifications = team.members.map(async (memberId) => {
@@ -1288,6 +1271,186 @@ class TeamManagementSystem {
                 content: "❌ An error occurred while disbanding the team.",
                 ephemeral: true,
             });
+        }
+    }
+
+    // Create team voice channel
+    async createTeamVoiceChannel(guild, team) {
+        try {
+            if (!this.teamCategoryId) return null;
+
+            const category = guild.channels.cache.get(this.teamCategoryId);
+            if (!category) {
+                console.error(`❌ Team category not found: ${this.teamCategoryId}`);
+                return null;
+            }
+
+            const voiceChannel = await guild.channels.create({
+                name: `🎤 ${team.name}`,
+                type: ChannelType.GuildVoice,
+                parent: this.teamCategoryId,
+                permissionOverwrites: [
+                    {
+                        id: guild.roles.everyone.id,
+                        deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect],
+                    },
+                    ...team.members.map(memberId => ({
+                        id: memberId,
+                        allow: [
+                            PermissionFlagsBits.ViewChannel,
+                            PermissionFlagsBits.Connect,
+                            PermissionFlagsBits.Speak
+                        ],
+                    }))
+                ],
+            });
+
+            console.log(`✅ Created voice channel for team "${team.name}": ${voiceChannel.name}`);
+            return voiceChannel;
+        } catch (error) {
+            console.error("❌ Error creating team voice channel:", error);
+            return null;
+        }
+    }
+
+    // Handle button interactions
+    async handleButtonInteraction(interaction) {
+        const { customId } = interaction;
+
+        try {
+            if (customId.startsWith("accept_invite_")) {
+                const inviteId = customId.replace("accept_invite_", "");
+                await this.handleInviteResponse(interaction, inviteId, 'accept');
+            } else if (customId.startsWith("deny_invite_")) {
+                const inviteId = customId.replace("deny_invite_", "");
+                await this.handleInviteResponse(interaction, inviteId, 'deny');
+            } else if (customId.startsWith("confirm_leave_")) {
+                const teamId = customId.replace("confirm_leave_", "");
+                await this.handleLeaveTeamConfirmation(interaction, teamId);
+            } else if (customId === "cancel_leave") {
+                await interaction.update({
+                    content: "❌ Team leave cancelled.",
+                    embeds: [],
+                    components: [],
+                });
+            } else if (customId.startsWith("confirm_transfer_")) {
+                const parts = customId.split("_");
+                const teamId = parts[2];
+                const newLeaderId = parts[3];
+                await this.handleTransferConfirmation(interaction, teamId, newLeaderId);
+            } else if (customId === "cancel_transfer") {
+                await interaction.update({
+                    content: "❌ Leadership transfer cancelled.",
+                    embeds: [],
+                    components: [],
+                });
+            }
+        } catch (error) {
+            console.error("❌ Error handling team button interaction:", error);
+            if (!interaction.replied && !interaction.deferred) {
+                await interaction.reply({
+                    content: "❌ An error occurred while processing your request.",
+                    ephemeral: true,
+                });
+            }
+        }
+    }
+
+    // Get team statistics
+    getTeamStats() {
+        const totalTeams = this.teams.size;
+        const totalPlayers = this.playerTeams.size;
+        const averageTeamSize = totalTeams > 0 ? (totalPlayers / totalTeams).toFixed(1) : 0;
+        const fullTeams = Array.from(this.teams.values()).filter(team => team.members.length === this.maxTeamSize).length;
+        const pendingInvites = Array.from(this.pendingInvites.values()).filter(invite => invite.status === 'pending').length;
+        
+        return {
+            totalTeams,
+            totalPlayers,
+            averageTeamSize,
+            fullTeams,
+            pendingInvites,
+            maxTeamSize: this.maxTeamSize
+        };
+    }
+
+    // Clean up expired invites (called periodically)
+    async cleanupExpiredInvites() {
+        try {
+            const now = new Date();
+            const expiredInvites = Array.from(this.pendingInvites.entries()).filter(
+                ([_, invite]) => invite.status === 'pending' && now > invite.expiresAt
+            );
+
+            expiredInvites.forEach(([inviteId, invite]) => {
+                this.pendingInvites.delete(inviteId);
+                console.log(`🧹 Expired invite for team "${invite.teamName}" to ${invite.targetUserTag}`);
+            });
+
+            if (expiredInvites.length > 0) {
+                this.savePendingInvites();
+                console.log(`🧹 Cleaned up ${expiredInvites.length} expired invites`);
+            }
+
+            return expiredInvites.length;
+        } catch (error) {
+            console.error("❌ Error cleaning up expired invites:", error);
+            return 0;
+        }
+    }
+
+    // Clean up inactive teams (called periodically)
+    async cleanupInactiveTeams(daysInactive = 30) {
+        try {
+            const cutoffDate = new Date();
+            cutoffDate.setDate(cutoffDate.getDate() - daysInactive);
+
+            const inactiveTeams = Array.from(this.teams.values()).filter(team => 
+                team.lastActivity < cutoffDate && team.members.length === 1
+            );
+
+            for (const team of inactiveTeams) {
+                console.log(`🧹 Cleaning up inactive team: ${team.name}`);
+                
+                // Remove player mapping
+                this.playerTeams.delete(team.leader);
+                
+                // Cancel pending invites for this team
+                const teamInvites = Array.from(this.pendingInvites.entries()).filter(
+                    ([_, invite]) => invite.teamId === team.id && invite.status === 'pending'
+                );
+                teamInvites.forEach(([inviteId, _]) => {
+                    this.pendingInvites.delete(inviteId);
+                });
+                
+                // Delete voice channel if exists
+                const voiceChannelId = this.teamVoiceChannels.get(team.id);
+                if (voiceChannelId) {
+                    try {
+                        const voiceChannel = this.client.channels.cache.get(voiceChannelId);
+                        if (voiceChannel) {
+                            await voiceChannel.delete();
+                        }
+                        this.teamVoiceChannels.delete(team.id);
+                    } catch (error) {
+                        console.error("❌ Error deleting inactive team voice channel:", error);
+                    }
+                }
+                
+                // Remove team
+                this.teams.delete(team.id);
+            }
+
+            if (inactiveTeams.length > 0) {
+                this.saveTeams();
+                this.savePendingInvites();
+                console.log(`🧹 Cleaned up ${inactiveTeams.length} inactive teams`);
+            }
+
+            return inactiveTeams.length;
+        } catch (error) {
+            console.error("❌ Error cleaning up inactive teams:", error);
+            return 0;
         }
     }
 }

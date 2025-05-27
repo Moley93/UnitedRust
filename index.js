@@ -67,6 +67,15 @@ client.once("ready", async () => {
     curfewSystem.scheduleCurfewReminders();
     giveawaySystem.scheduleGiveawayReminders();
 
+    // Schedule periodic cleanup for team system
+    setInterval(() => {
+        teamSystem.cleanupExpiredInvites();
+    }, 60 * 60 * 1000); // Clean up expired invites every hour
+
+    setInterval(() => {
+        teamSystem.cleanupInactiveTeams(30);
+    }, 24 * 60 * 60 * 1000); // Clean up inactive teams daily
+
     console.log("🕒 All systems initialized successfully!");
     console.log("- Curfew System: ✅ Active");
     console.log("- Ticket System: ✅ Active");
@@ -95,16 +104,16 @@ client.on("interactionCreate", async (interaction) => {
     }
 });
 
-// Handle button interactions
+// Handle button interactions - UPDATED FOR NEW TEAM SYSTEM
 async function handleButtonInteraction(interaction) {
     const { customId } = interaction;
 
     try {
-        // Team management button interactions
-        if (customId.startsWith("confirm_leave_") || 
+        // Team management button interactions - UPDATED
+        if (customId.startsWith("accept_invite_") || 
+            customId.startsWith("deny_invite_") ||
+            customId.startsWith("confirm_leave_") || 
             customId === "cancel_leave" || 
-            customId.startsWith("regenerate_invite_") || 
-            customId.startsWith("toggle_invites_") ||
             customId.startsWith("confirm_transfer_") ||
             customId === "cancel_transfer") {
             await teamSystem.handleButtonInteraction(interaction);
@@ -155,7 +164,7 @@ async function handleSlashCommand(interaction) {
                 await giveawaySystem.handleSendGiveawayCommand(interaction);
                 break;
 
-            // Team Management Commands
+            // Team Management Commands - UPDATED
             case "team":
                 const subcommand = interaction.options.getSubcommand();
                 
@@ -164,9 +173,7 @@ async function handleSlashCommand(interaction) {
                         await teamSystem.handleCreateTeamCommand(interaction);
                         break;
                         
-                    case "join":
-                        await teamSystem.handleJoinTeamCommand(interaction);
-                        break;
+                    // REMOVED: case "join" - no longer needed with DM invitations
                         
                     case "leave":
                         await teamSystem.handleLeaveTeamCommand(interaction);
@@ -509,7 +516,7 @@ async function handleSlashCommand(interaction) {
     }
 }
 
-// Create help embed
+// Create help embed - UPDATED FOR NEW TEAM SYSTEM
 function createHelpEmbed(category) {
     const { EmbedBuilder } = require("discord.js");
     const embed = new EmbedBuilder()
@@ -591,15 +598,19 @@ function createHelpEmbed(category) {
                     .setDescription("Commands for creating and managing teams")
                     .addFields(
                         { name: "/team create", value: "Create a new team", inline: false },
-                        { name: "/team join", value: "Join a team with invite code", inline: false },
                         { name: "/team leave", value: "Leave your current team", inline: false },
-                        { name: "/team info", value: "View team information and settings", inline: false },
+                        { name: "/team info", value: "View your team information", inline: false },
                         { name: "/team list", value: "List all active teams", inline: false },
-                        { name: "/team invite", value: "Directly invite a user (Leader only)", inline: false },
+                        { name: "/team invite", value: "Send DM invitation to a user (Leader only)", inline: false },
                         { name: "/team kick", value: "Remove a team member (Leader only)", inline: false },
                         { name: "/team transfer", value: "Transfer leadership (Leader only)", inline: false },
                         { name: "/team disband", value: "Force disband a team (Admin only)", inline: false }
-                    );
+                    )
+                    .addFields({
+                        name: "📋 How Team Invitations Work",
+                        value: "• Team leaders use `/team invite @user` to invite players\n• Invited users receive a DM with Accept/Deny buttons\n• No invite codes needed - everything is handled via DMs\n• Invitations expire after 24 hours",
+                        inline: false
+                    });
                 break;
 
             case "debug":
@@ -645,7 +656,7 @@ app.get("/", (req, res) => {
             "Welcome Messages",
             "Message Purge System",
             "Advanced Moderation",
-            "Team Management"
+            "Team Management with DM Invitations"
         ],
         systems: {
             curfew: "✅ Active",
@@ -672,6 +683,7 @@ app.get("/health", (req, res) => {
         next_ticket: ticketSystem ? ticketSystem.ticketCounter : 0,
         total_teams: teamSystem ? teamSystem.getTeamStats().totalTeams : 0,
         total_players_in_teams: teamSystem ? teamSystem.getTeamStats().totalPlayers : 0,
+        pending_team_invites: teamSystem ? teamSystem.getTeamStats().pendingInvites : 0,
         systems_active: 8,
         memory_usage: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + "MB"
     });
@@ -720,7 +732,7 @@ console.log("🎁 Giveaway System: ENABLED");
 console.log("🛡️ Moderation System: ENABLED");
 console.log("📋 Rules System: ENABLED");
 console.log("🔧 Debug System: ENABLED");
-console.log("👥 Team System: ENABLED");
+console.log("👥 Team System: ENABLED (DM Invitations)");
 
 // Validate configuration and login
 if (validateConfig()) {
