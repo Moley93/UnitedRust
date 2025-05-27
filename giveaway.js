@@ -138,11 +138,11 @@ class GiveawaySystem {
         }
     }
 
-    // Schedule playtime giveaway messages
+    // Schedule playtime giveaway messages - UPDATED TO 6 HOURS
     scheduleGiveawayReminders() {
-        // Schedule playtime giveaway message every 4 hours
+        // Schedule playtime giveaway message every 6 hours (changed from 4 hours)
         cron.schedule(
-            "0 */4 * * *",
+            "0 */6 * * *",
             () => {
                 console.log("🎁 Triggering playtime giveaway message...");
                 this.sendPlaytimeGiveawayMessage();
@@ -151,7 +151,7 @@ class GiveawaySystem {
         );
 
         console.log("🎁 Playtime giveaway reminders scheduled successfully!");
-        console.log("- Playtime giveaway message: Every 4 hours (00:00, 04:00, 08:00, 12:00, 16:00, 20:00 UTC)");
+        console.log("- Playtime giveaway message: Every 6 hours (00:00, 06:00, 12:00, 18:00 UTC)");
     }
 
     // Send giveaway winner announcement

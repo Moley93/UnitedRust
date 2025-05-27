@@ -8,6 +8,7 @@ const CurfewSystem = require("./curfew");
 const TicketSystem = require("./tickets");
 const WelcomeSystem = require("./welcome");
 const GiveawaySystem = require("./giveaway");
+const WipeSystem = require("./wipe"); // NEW: Import the WipeSystem
 const ModerationSystem = require("./moderation");
 const RulesSystem = require("./rules");
 const DebugSystem = require("./debug");
@@ -29,6 +30,7 @@ let curfewSystem;
 let ticketSystem;
 let welcomeSystem;
 let giveawaySystem;
+let wipeSystem; // NEW: Initialize wipe system
 let moderationSystem;
 let rulesSystem;
 let debugSystem;
@@ -51,6 +53,7 @@ client.once("ready", async () => {
     ticketSystem = new TicketSystem(client, config);
     welcomeSystem = new WelcomeSystem(client, config);
     giveawaySystem = new GiveawaySystem(client, config);
+    wipeSystem = new WipeSystem(client, config); // NEW: Initialize wipe system
     moderationSystem = new ModerationSystem(client, config);
     rulesSystem = new RulesSystem();
     debugSystem = new DebugSystem(client, config);
@@ -65,7 +68,8 @@ client.once("ready", async () => {
 
     // Schedule cron jobs
     curfewSystem.scheduleCurfewReminders();
-    giveawaySystem.scheduleGiveawayReminders();
+    giveawaySystem.scheduleGiveawayReminders(); // Updated to 6 hours
+    wipeSystem.scheduleWipeAnnouncements(); // NEW: Schedule wipe announcements
 
     // Schedule periodic cleanup for team system
     setInterval(() => {
@@ -80,7 +84,8 @@ client.once("ready", async () => {
     console.log("- Curfew System: ✅ Active");
     console.log("- Ticket System: ✅ Active");
     console.log("- Welcome System: ✅ Active");
-    console.log("- Giveaway System: ✅ Active");
+    console.log("- Giveaway System: ✅ Active (6 hour intervals)");
+    console.log("- Wipe System: ✅ Active (8 AM & 8 PM GMT)"); // NEW
     console.log("- Moderation System: ✅ Active");
     console.log("- Rules System: ✅ Active");
     console.log("- Debug System: ✅ Active");
@@ -157,6 +162,15 @@ async function handleSlashCommand(interaction) {
             // Curfew Commands
             case "curfew":
                 await curfewSystem.handleCurfewCommand(interaction);
+                break;
+
+            // Wipe Commands - NEW
+            case "wipe":
+                await wipeSystem.handleWipeCommand(interaction);
+                break;
+
+            case "send-wipe-announcement":
+                await wipeSystem.handleSendWipeAnnouncementCommand(interaction);
                 break;
 
             // Giveaway Commands
@@ -533,6 +547,7 @@ function createHelpEmbed(category) {
             "📋 **Rules** - `/help category:rules`\n" +
             "🚫 **Curfew** - `/help category:curfew`\n" +
             "🎁 **Giveaway** - `/help category:giveaway`\n" +
+            "🔄 **Wipe** - `/help category:wipe`\n" +
             "👥 **Teams** - `/help category:team`\n" +
             "🔧 **Debug** - `/help category:debug`\n\n" +
             "Use `/help category:[name]` to see commands in each category."
@@ -593,6 +608,15 @@ function createHelpEmbed(category) {
                     );
                 break;
 
+            case "wipe":
+                embed.setTitle("🔄 Wipe Commands")
+                    .setDescription("Commands for server wipe information and announcements")
+                    .addFields(
+                        { name: "/wipe", value: "Check next wipe countdown and information", inline: false },
+                        { name: "/send-wipe-announcement", value: "Send wipe announcement (Admin)", inline: false }
+                    );
+                break;
+
             case "team":
                 embed.setTitle("👥 Team Management Commands")
                     .setDescription("Commands for creating and managing teams")
@@ -648,11 +672,13 @@ app.get("/", (req, res) => {
         guilds: client.guilds.cache.size,
         tickets: ticketSystem ? ticketSystem.tickets.size : 0,
         teams: teamSystem ? teamSystem.getTeamStats().totalTeams : 0,
+        nextWipe: wipeSystem ? wipeSystem.getNextWipeDate().toISOString() : null, // NEW
         features: [
             "Raid Curfew",
             "Ticket System", 
             "Rules Commands",
-            "Playtime Giveaway",
+            "Playtime Giveaway (6h intervals)",
+            "Wipe Announcements (8 AM & 8 PM GMT)", // NEW
             "Welcome Messages",
             "Message Purge System",
             "Advanced Moderation",
@@ -662,7 +688,8 @@ app.get("/", (req, res) => {
             curfew: "✅ Active",
             tickets: "✅ Active", 
             welcome: "✅ Active",
-            giveaway: "✅ Active",
+            giveaway: "✅ Active (6h)",
+            wipe: "✅ Active (8 AM & 8 PM GMT)", // NEW
             moderation: "✅ Active",
             rules: "✅ Active",
             debug: "✅ Active",
@@ -681,10 +708,12 @@ app.get("/health", (req, res) => {
         timestamp: new Date().toISOString(),
         raid_status: curfewSystem ? (curfewSystem.isRaidingAllowed() ? "allowed" : "not_allowed") : "unknown",
         next_ticket: ticketSystem ? ticketSystem.ticketCounter : 0,
+        next_wipe: wipeSystem ? wipeSystem.getNextWipeDate().toISOString() : null, // NEW
+        time_until_wipe: wipeSystem ? wipeSystem.getTimeUntilWipe() : "unknown", // NEW
         total_teams: teamSystem ? teamSystem.getTeamStats().totalTeams : 0,
         total_players_in_teams: teamSystem ? teamSystem.getTeamStats().totalPlayers : 0,
         pending_team_invites: teamSystem ? teamSystem.getTeamStats().pendingInvites : 0,
-        systems_active: 8,
+        systems_active: 9, // Updated from 8 to 9
         memory_usage: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + "MB"
     });
 });
@@ -728,7 +757,8 @@ console.log("🆔 Client ID:", config.clientId);
 console.log("🎫 Ticket System: ENABLED");
 console.log("🚫 Curfew System: ENABLED");
 console.log("👋 Welcome System: ENABLED");
-console.log("🎁 Giveaway System: ENABLED");
+console.log("🎁 Giveaway System: ENABLED (6 hour intervals)");
+console.log("🔄 Wipe System: ENABLED (8 AM & 8 PM GMT)"); // NEW
 console.log("🛡️ Moderation System: ENABLED");
 console.log("📋 Rules System: ENABLED");
 console.log("🔧 Debug System: ENABLED");

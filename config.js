@@ -44,8 +44,15 @@ const config = {
         curfewEndHour: parseInt(process.env.CURFEW_END_HOUR) || 8, // GMT hour (8 = 8 AM)
         curfewReminderMinutes: parseInt(process.env.CURFEW_REMINDER_MINUTES) || 30,
         
-        // Giveaway system settings
-        giveawayIntervalHours: parseInt(process.env.GIVEAWAY_INTERVAL_HOURS) || 4,
+        // Giveaway system settings - UPDATED to 6 hours
+        giveawayIntervalHours: parseInt(process.env.GIVEAWAY_INTERVAL_HOURS) || 6,
+        
+        // Wipe system settings - NEW
+        wipeDay: parseInt(process.env.WIPE_DAY) || 4, // 4 = Thursday (0 = Sunday, 1 = Monday, etc.)
+        wipeHour: parseInt(process.env.WIPE_HOUR) || 19, // 19 = 7 PM GMT
+        wipeAnnouncementHours: process.env.WIPE_ANNOUNCEMENT_HOURS ? 
+            process.env.WIPE_ANNOUNCEMENT_HOURS.split(',').map(h => parseInt(h.trim())) : 
+            [8, 20], // 8 AM and 8 PM GMT
         
         // Ticket system settings
         maxTicketsPerUser: parseInt(process.env.MAX_TICKETS_PER_USER) || 1,
@@ -205,6 +212,12 @@ function getConfigSummary() {
             port: config.server.port,
             environment: config.server.environment,
             logLevel: config.server.logLevel,
+        },
+        behavior: {
+            giveawayInterval: config.behavior.giveawayIntervalHours,
+            wipeDay: config.behavior.wipeDay,
+            wipeHour: config.behavior.wipeHour,
+            wipeAnnouncementHours: config.behavior.wipeAnnouncementHours,
         }
     };
 }
@@ -242,6 +255,12 @@ module.exports = {
     getModeratorRoleId: () => config.roles.moderatorRoleId,
     getCurfewHours: () => ({ start: config.behavior.curfewStartHour, end: config.behavior.curfewEndHour }),
     getMaxTeamSize: () => config.behavior.maxTeamSize,
+    getGiveawayInterval: () => config.behavior.giveawayIntervalHours, // NEW
+    getWipeSettings: () => ({ // NEW
+        day: config.behavior.wipeDay,
+        hour: config.behavior.wipeHour,
+        announcementHours: config.behavior.wipeAnnouncementHours
+    }),
     
     // Environment helpers
     isDevelopment: () => config.server.environment === "development",
