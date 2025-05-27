@@ -235,7 +235,7 @@ class TeamManagementSystem {
                 .setTimestamp()
                 .setFooter({ text: "UnitedRust Team Management" });
 
-            await interaction.reply({ embeds: [embed] });
+            await interaction.reply({ embeds: [embed], ephemeral: true });
 
             console.log(`✅ Team "${teamName}" created by ${user.tag}`);
         } catch (error) {
