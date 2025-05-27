@@ -10,6 +10,75 @@ class CommandManager {
     // Define all slash commands
     defineCommands() {
         return [
+            // Leaderboard Commands - NEW
+            new SlashCommandBuilder()
+                .setName("leaderboard")
+                .setDescription("View server leaderboards")
+                .addStringOption((option) =>
+                    option
+                        .setName("category")
+                        .setDescription("Leaderboard category to display")
+                        .setRequired(false)
+                        .addChoices(
+                            // Material categories
+                            { name: "Stone Gathered", value: "stones" },
+                            { name: "Wood Gathered", value: "wood" },
+                            { name: "Sulfur Ore", value: "sulfurOre" },
+                            { name: "Metal Ore", value: "metalOre" },
+                            // PvP categories
+                            { name: "PvP Kills", value: "kills" },
+                            { name: "Deaths", value: "deaths" },
+                            { name: "K/D Ratio", value: "kdRatio" },
+                            { name: "PvP Accuracy", value: "accuracy" },
+                            // Time categories
+                            { name: "Total Playtime", value: "totalLifetime" },
+                            { name: "Wipe Playtime", value: "sinceWipe" },
+                            { name: "AFK Time", value: "afkTime" }
+                        )
+                ),
+
+            new SlashCommandBuilder()
+                .setName("lb")
+                .setDescription("View server leaderboards (short version)")
+                .addStringOption((option) =>
+                    option
+                        .setName("category")
+                        .setDescription("Leaderboard category to display")
+                        .setRequired(false)
+                        .addChoices(
+                            // Material categories
+                            { name: "Stone Gathered", value: "stones" },
+                            { name: "Wood Gathered", value: "wood" },
+                            { name: "Sulfur Ore", value: "sulfurOre" },
+                            { name: "Metal Ore", value: "metalOre" },
+                            // PvP categories
+                            { name: "PvP Kills", value: "kills" },
+                            { name: "Deaths", value: "deaths" },
+                            { name: "K/D Ratio", value: "kdRatio" },
+                            { name: "PvP Accuracy", value: "accuracy" },
+                            // Time categories
+                            { name: "Total Playtime", value: "totalLifetime" },
+                            { name: "Wipe Playtime", value: "sinceWipe" },
+                            { name: "AFK Time", value: "afkTime" }
+                        )
+                ),
+
+            new SlashCommandBuilder()
+                .setName("playerstats")
+                .setDescription("View detailed statistics for a specific player")
+                .addStringOption((option) =>
+                    option
+                        .setName("steamid")
+                        .setDescription("Player's Steam ID (17 digits)")
+                        .setRequired(true)
+                        .setMinLength(17)
+                        .setMaxLength(17)
+                ),
+
+            new SlashCommandBuilder()
+                .setName("topplayers")
+                .setDescription("View an overview of top players across different categories"),
+
             // Raid Curfew Commands
             new SlashCommandBuilder()
                 .setName("curfew")
@@ -310,7 +379,8 @@ class CommandManager {
                             { name: "Giveaway", value: "giveaway" },
                             { name: "Debug", value: "debug" },
                             { name: "Teams", value: "team" },
-                            { name: "Wipe", value: "wipe" }
+                            { name: "Wipe", value: "wipe" },
+                            { name: "Leaderboard", value: "leaderboard" }
                         )
                 )
         ];
@@ -404,6 +474,9 @@ class CommandManager {
             ],
             wipe: [
                 "wipe", "send-wipe-announcement"
+            ],
+            leaderboard: [
+                "leaderboard", "lb", "playerstats", "topplayers"
             ]
         };
     }

@@ -8,7 +8,8 @@ const CurfewSystem = require("./curfew");
 const TicketSystem = require("./tickets");
 const WelcomeSystem = require("./welcome");
 const GiveawaySystem = require("./giveaway");
-const WipeSystem = require("./wipe"); // NEW: Import the WipeSystem
+const WipeSystem = require("./wipe");
+const LeaderboardSystem = require("./leaderboard"); // NEW: Import LeaderboardSystem
 const ModerationSystem = require("./moderation");
 const RulesSystem = require("./rules");
 const DebugSystem = require("./debug");
@@ -30,7 +31,8 @@ let curfewSystem;
 let ticketSystem;
 let welcomeSystem;
 let giveawaySystem;
-let wipeSystem; // NEW: Initialize wipe system
+let wipeSystem;
+let leaderboardSystem; // NEW: Initialize leaderboard system
 let moderationSystem;
 let rulesSystem;
 let debugSystem;
@@ -53,7 +55,8 @@ client.once("ready", async () => {
     ticketSystem = new TicketSystem(client, config);
     welcomeSystem = new WelcomeSystem(client, config);
     giveawaySystem = new GiveawaySystem(client, config);
-    wipeSystem = new WipeSystem(client, config); // NEW: Initialize wipe system
+    wipeSystem = new WipeSystem(client, config);
+    leaderboardSystem = new LeaderboardSystem(client, config); // NEW: Initialize leaderboard system
     moderationSystem = new ModerationSystem(client, config);
     rulesSystem = new RulesSystem();
     debugSystem = new DebugSystem(client, config);
@@ -69,7 +72,7 @@ client.once("ready", async () => {
     // Schedule cron jobs
     curfewSystem.scheduleCurfewReminders();
     giveawaySystem.scheduleGiveawayReminders(); // Updated to 6 hours
-    wipeSystem.scheduleWipeAnnouncements(); // NEW: Schedule wipe announcements
+    wipeSystem.scheduleWipeAnnouncements();
 
     // Schedule periodic cleanup for team system
     setInterval(() => {
@@ -80,12 +83,17 @@ client.once("ready", async () => {
         teamSystem.cleanupInactiveTeams(30);
     }, 24 * 60 * 60 * 1000); // Clean up inactive teams daily
 
+    // Test leaderboard API connection
+    const apiStatus = await leaderboardSystem.getApiStatus();
+    console.log(`📊 Leaderboard API Status: ${apiStatus.status} (${apiStatus.url})`);
+
     console.log("🕒 All systems initialized successfully!");
     console.log("- Curfew System: ✅ Active");
     console.log("- Ticket System: ✅ Active");
     console.log("- Welcome System: ✅ Active");
     console.log("- Giveaway System: ✅ Active (6 hour intervals)");
-    console.log("- Wipe System: ✅ Active (8 AM & 8 PM GMT)"); // NEW
+    console.log("- Wipe System: ✅ Active (8 AM & 8 PM GMT)");
+    console.log("- Leaderboard System: ✅ Active"); // NEW
     console.log("- Moderation System: ✅ Active");
     console.log("- Rules System: ✅ Active");
     console.log("- Debug System: ✅ Active");
@@ -109,12 +117,12 @@ client.on("interactionCreate", async (interaction) => {
     }
 });
 
-// Handle button interactions - UPDATED FOR NEW TEAM SYSTEM
+// Handle button interactions
 async function handleButtonInteraction(interaction) {
     const { customId } = interaction;
 
     try {
-        // Team management button interactions - UPDATED
+        // Team management button interactions
         if (customId.startsWith("accept_invite_") || 
             customId.startsWith("deny_invite_") ||
             customId.startsWith("confirm_leave_") || 
@@ -159,12 +167,26 @@ async function handleSlashCommand(interaction) {
 
     try {
         switch (commandName) {
+            // Leaderboard Commands - NEW
+            case "leaderboard":
+            case "lb":
+                await leaderboardSystem.handleLeaderboardCommand(interaction);
+                break;
+
+            case "playerstats":
+                await leaderboardSystem.handlePlayerStatsCommand(interaction);
+                break;
+
+            case "topplayers":
+                await leaderboardSystem.handleTopPlayersCommand(interaction);
+                break;
+
             // Curfew Commands
             case "curfew":
                 await curfewSystem.handleCurfewCommand(interaction);
                 break;
 
-            // Wipe Commands - NEW
+            // Wipe Commands
             case "wipe":
                 await wipeSystem.handleWipeCommand(interaction);
                 break;
@@ -178,7 +200,7 @@ async function handleSlashCommand(interaction) {
                 await giveawaySystem.handleSendGiveawayCommand(interaction);
                 break;
 
-            // Team Management Commands - UPDATED
+            // Team Management Commands
             case "team":
                 const subcommand = interaction.options.getSubcommand();
                 
@@ -186,8 +208,6 @@ async function handleSlashCommand(interaction) {
                     case "create":
                         await teamSystem.handleCreateTeamCommand(interaction);
                         break;
-                        
-                    // REMOVED: case "join" - no longer needed with DM invitations
                         
                     case "leave":
                         await teamSystem.handleLeaveTeamCommand(interaction);
@@ -530,7 +550,7 @@ async function handleSlashCommand(interaction) {
     }
 }
 
-// Create help embed - UPDATED FOR NEW TEAM SYSTEM
+// Create help embed - UPDATED FOR LEADERBOARD SYSTEM
 function createHelpEmbed(category) {
     const { EmbedBuilder } = require("discord.js");
     const embed = new EmbedBuilder()
@@ -549,6 +569,7 @@ function createHelpEmbed(category) {
             "🎁 **Giveaway** - `/help category:giveaway`\n" +
             "🔄 **Wipe** - `/help category:wipe`\n" +
             "👥 **Teams** - `/help category:team`\n" +
+            "📊 **Leaderboard** - `/help category:leaderboard`\n" +
             "🔧 **Debug** - `/help category:debug`\n\n" +
             "Use `/help category:[name]` to see commands in each category."
         );
@@ -556,6 +577,27 @@ function createHelpEmbed(category) {
         const commands = commandManager.getCommandsByCategory();
         
         switch (category) {
+            case "leaderboard":
+                embed.setTitle("📊 Leaderboard Commands")
+                    .setDescription("Commands for viewing server statistics and leaderboards")
+                    .addFields(
+                        { name: "/leaderboard [category]", value: "View server leaderboards for specific categories", inline: false },
+                        { name: "/lb [category]", value: "Short version of leaderboard command", inline: false },
+                        { name: "/playerstats <steamid>", value: "View detailed stats for a specific player", inline: false },
+                        { name: "/topplayers", value: "View overview of top players across categories", inline: false }
+                    )
+                    .addFields({
+                        name: "📋 Available Categories",
+                        value: "**Materials:** stones, wood, sulfurOre, metalOre\n**PvP:** kills, deaths, kdRatio, accuracy\n**Time:** totalLifetime, sinceWipe, afkTime",
+                        inline: false
+                    })
+                    .addFields({
+                        name: "💡 Examples",
+                        value: "• `/lb kills` - View top killers\n• `/leaderboard totalLifetime` - View most active players\n• `/playerstats 76561198000000000` - View player stats",
+                        inline: false
+                    });
+                break;
+
             case "moderation":
                 embed.setTitle("🛡️ Moderation Commands")
                     .setDescription("Commands for server moderation (Mod/Admin only)")
@@ -672,24 +714,27 @@ app.get("/", (req, res) => {
         guilds: client.guilds.cache.size,
         tickets: ticketSystem ? ticketSystem.tickets.size : 0,
         teams: teamSystem ? teamSystem.getTeamStats().totalTeams : 0,
-        nextWipe: wipeSystem ? wipeSystem.getNextWipeDate().toISOString() : null, // NEW
+        nextWipe: wipeSystem ? wipeSystem.getNextWipeDate().toISOString() : null,
+        leaderboard_api: leaderboardSystem ? "Available" : "Unavailable", // NEW
         features: [
             "Raid Curfew",
             "Ticket System", 
             "Rules Commands",
             "Playtime Giveaway (6h intervals)",
-            "Wipe Announcements (8 AM & 8 PM GMT)", // NEW
+            "Wipe Announcements (8 AM & 8 PM GMT)",
             "Welcome Messages",
             "Message Purge System",
             "Advanced Moderation",
-            "Team Management with DM Invitations"
+            "Team Management with DM Invitations",
+            "Rust Leaderboards & Player Stats" // NEW
         ],
         systems: {
             curfew: "✅ Active",
             tickets: "✅ Active", 
             welcome: "✅ Active",
             giveaway: "✅ Active (6h)",
-            wipe: "✅ Active (8 AM & 8 PM GMT)", // NEW
+            wipe: "✅ Active (8 AM & 8 PM GMT)",
+            leaderboard: "✅ Active", // NEW
             moderation: "✅ Active",
             rules: "✅ Active",
             debug: "✅ Active",
@@ -708,12 +753,13 @@ app.get("/health", (req, res) => {
         timestamp: new Date().toISOString(),
         raid_status: curfewSystem ? (curfewSystem.isRaidingAllowed() ? "allowed" : "not_allowed") : "unknown",
         next_ticket: ticketSystem ? ticketSystem.ticketCounter : 0,
-        next_wipe: wipeSystem ? wipeSystem.getNextWipeDate().toISOString() : null, // NEW
-        time_until_wipe: wipeSystem ? wipeSystem.getTimeUntilWipe() : "unknown", // NEW
+        next_wipe: wipeSystem ? wipeSystem.getNextWipeDate().toISOString() : null,
+        time_until_wipe: wipeSystem ? wipeSystem.getTimeUntilWipe() : "unknown",
         total_teams: teamSystem ? teamSystem.getTeamStats().totalTeams : 0,
         total_players_in_teams: teamSystem ? teamSystem.getTeamStats().totalPlayers : 0,
         pending_team_invites: teamSystem ? teamSystem.getTeamStats().pendingInvites : 0,
-        systems_active: 9, // Updated from 8 to 9
+        leaderboard_api_status: leaderboardSystem ? "connected" : "unavailable", // NEW
+        systems_active: 10, // Updated from 9 to 10
         memory_usage: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + "MB"
     });
 });
@@ -758,7 +804,8 @@ console.log("🎫 Ticket System: ENABLED");
 console.log("🚫 Curfew System: ENABLED");
 console.log("👋 Welcome System: ENABLED");
 console.log("🎁 Giveaway System: ENABLED (6 hour intervals)");
-console.log("🔄 Wipe System: ENABLED (8 AM & 8 PM GMT)"); // NEW
+console.log("🔄 Wipe System: ENABLED (8 AM & 8 PM GMT)");
+console.log("📊 Leaderboard System: ENABLED"); // NEW
 console.log("🛡️ Moderation System: ENABLED");
 console.log("📋 Rules System: ENABLED");
 console.log("🔧 Debug System: ENABLED");

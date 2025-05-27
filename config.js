@@ -47,7 +47,7 @@ const config = {
         // Giveaway system settings - UPDATED to 6 hours
         giveawayIntervalHours: parseInt(process.env.GIVEAWAY_INTERVAL_HOURS) || 6,
         
-        // Wipe system settings - NEW
+        // Wipe system settings
         wipeDay: parseInt(process.env.WIPE_DAY) || 4, // 4 = Thursday (0 = Sunday, 1 = Monday, etc.)
         wipeHour: parseInt(process.env.WIPE_HOUR) || 19, // 19 = 7 PM GMT
         wipeAnnouncementHours: process.env.WIPE_ANNOUNCEMENT_HOURS ? 
@@ -64,14 +64,14 @@ const config = {
         logModerationActions: process.env.LOG_MODERATION_ACTIONS !== "false", // Default true
     },
 
-    // External API Keys and Tokens (if you add integrations later)
+    // External API Keys and Tokens (updated for leaderboard system)
     external: {
         // Steam API key (for future Steam integration)
         steamApiKey: process.env.STEAM_API_KEY || process.env["STEAM_API_KEY"] || "",
         
-        // Rust game server API (if you add server stats)
+        // Rust game server API (UPDATED for leaderboard system)
         rustServerApiKey: process.env.RUST_SERVER_API_KEY || process.env["RUST_SERVER_API_KEY"] || "",
-        rustServerApiUrl: process.env.RUST_SERVER_API_URL || process.env["RUST_SERVER_API_URL"] || "",
+        rustServerApiUrl: process.env.RUST_API_URL || process.env["RUST_API_URL"] || "http://localhost:3001",
         
         // Database connection (if you add database later)
         databaseUrl: process.env.DATABASE_URL || process.env["DATABASE_URL"] || "",
@@ -166,6 +166,11 @@ function validateConfig() {
     if (!config.roles.moderatorRoleId) {
         warnings.push("MODERATOR_ROLE_ID is not configured - moderation features may be limited");
     }
+    
+    // NEW: Leaderboard system warnings
+    if (!config.external.rustServerApiUrl || config.external.rustServerApiUrl === "http://localhost:3001") {
+        warnings.push("RUST_API_URL is not properly configured - leaderboard system may not work");
+    }
 
     // Display results
     if (criticalErrors.length > 0) {
@@ -205,6 +210,7 @@ function getConfigSummary() {
         external: {
             hasSteamApi: !!config.external.steamApiKey,
             hasRustServerApi: !!config.external.rustServerApiKey,
+            hasRustApiUrl: !!config.external.rustServerApiUrl && config.external.rustServerApiUrl !== "http://localhost:3001", // NEW
             hasDatabase: !!config.external.databaseUrl,
             hasWebhook: !!config.external.webhookUrl,
         },
@@ -255,12 +261,17 @@ module.exports = {
     getModeratorRoleId: () => config.roles.moderatorRoleId,
     getCurfewHours: () => ({ start: config.behavior.curfewStartHour, end: config.behavior.curfewEndHour }),
     getMaxTeamSize: () => config.behavior.maxTeamSize,
-    getGiveawayInterval: () => config.behavior.giveawayIntervalHours, // NEW
-    getWipeSettings: () => ({ // NEW
+    getGiveawayInterval: () => config.behavior.giveawayIntervalHours,
+    getWipeSettings: () => ({
         day: config.behavior.wipeDay,
         hour: config.behavior.wipeHour,
         announcementHours: config.behavior.wipeAnnouncementHours
     }),
+    
+    // NEW: Leaderboard system helpers
+    getRustApiUrl: () => config.external.rustServerApiUrl,
+    getRustApiKey: () => config.external.rustServerApiKey,
+    hasRustApiConfigured: () => !!(config.external.rustServerApiUrl && config.external.rustServerApiUrl !== "http://localhost:3001"),
     
     // Environment helpers
     isDevelopment: () => config.server.environment === "development",
