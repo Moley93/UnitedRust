@@ -1,4 +1,4 @@
-// UnitedRust Combined Discord Bot - Main File
+// UnitedRust Combined Discord Bot - Main File (File System Version)
 const { Client, GatewayIntentBits, PermissionFlagsBits } = require("discord.js");
 const express = require("express");
 
@@ -9,7 +9,7 @@ const TicketSystem = require("./tickets");
 const WelcomeSystem = require("./welcome");
 const GiveawaySystem = require("./giveaway");
 const WipeSystem = require("./wipe");
-const LeaderboardSystem = require("./leaderboard"); // NEW: Import LeaderboardSystem
+const LeaderboardSystem = require("./leaderboard"); // File system based version
 const ModerationSystem = require("./moderation");
 const RulesSystem = require("./rules");
 const DebugSystem = require("./debug");
@@ -32,7 +32,7 @@ let ticketSystem;
 let welcomeSystem;
 let giveawaySystem;
 let wipeSystem;
-let leaderboardSystem; // NEW: Initialize leaderboard system
+let leaderboardSystem; // File system based version
 let moderationSystem;
 let rulesSystem;
 let debugSystem;
@@ -56,7 +56,7 @@ client.once("ready", async () => {
     welcomeSystem = new WelcomeSystem(client, config);
     giveawaySystem = new GiveawaySystem(client, config);
     wipeSystem = new WipeSystem(client, config);
-    leaderboardSystem = new LeaderboardSystem(client, config); // NEW: Initialize leaderboard system
+    leaderboardSystem = new LeaderboardSystem(client, config); // File system based
     moderationSystem = new ModerationSystem(client, config);
     rulesSystem = new RulesSystem();
     debugSystem = new DebugSystem(client, config);
@@ -83,9 +83,21 @@ client.once("ready", async () => {
         teamSystem.cleanupInactiveTeams(30);
     }, 24 * 60 * 60 * 1000); // Clean up inactive teams daily
 
-    // Test leaderboard API connection
-    const apiStatus = await leaderboardSystem.getApiStatus();
-    console.log(`📊 Leaderboard API Status: ${apiStatus.status} (${apiStatus.url})`);
+    // Test leaderboard file system access
+    const leaderboardStatus = await leaderboardSystem.getApiStatus();
+    console.log(`📊 Leaderboard System Status: ${leaderboardStatus.status} (${leaderboardStatus.type})`);
+    console.log(`📁 Data Path: ${leaderboardStatus.url}`);
+    
+    // List available data files for debugging
+    const availableFiles = leaderboardSystem.listAvailableFiles();
+    console.log(`📄 Available leaderboard files: ${availableFiles.length}`);
+    if (availableFiles.length > 0) {
+        availableFiles.forEach(file => {
+            console.log(`   - ${file.filename} (${file.size} bytes, modified: ${file.modified.toISOString()})`);
+        });
+    } else {
+        console.warn(`⚠️ No leaderboard data files found in ${leaderboardStatus.url}`);
+    }
 
     console.log("🕒 All systems initialized successfully!");
     console.log("- Curfew System: ✅ Active");
@@ -93,7 +105,7 @@ client.once("ready", async () => {
     console.log("- Welcome System: ✅ Active");
     console.log("- Giveaway System: ✅ Active (6 hour intervals)");
     console.log("- Wipe System: ✅ Active (8 AM & 8 PM GMT)");
-    console.log("- Leaderboard System: ✅ Active"); // NEW
+    console.log("- Leaderboard System: ✅ Active (File System Based)");
     console.log("- Moderation System: ✅ Active");
     console.log("- Rules System: ✅ Active");
     console.log("- Debug System: ✅ Active");
@@ -167,7 +179,7 @@ async function handleSlashCommand(interaction) {
 
     try {
         switch (commandName) {
-            // Leaderboard Commands - NEW
+            // Leaderboard Commands - File system based
             case "leaderboard":
             case "lb":
                 await leaderboardSystem.handleLeaderboardCommand(interaction);
@@ -271,31 +283,6 @@ async function handleSlashCommand(interaction) {
                     );
                     await interaction.reply({ embeds: [embed] });
                     await moderationSystem.logModerationAction(interaction.guild, "timeout", embed);
-                } catch (error) {
-                    await interaction.reply({
-                        content: `❌ Failed to timeout ${timeoutUser}: ${error.message}`,
-                        ephemeral: true,
-                    });
-                }
-                break;
-
-            case "remove-timeout":
-                if (!moderationSystem.hasModPermissions(member)) {
-                    return interaction.reply({
-                        content: "❌ You don't have permission to use this command.",
-                        ephemeral: true,
-                    });
-                }
-                const removeTimeoutUser = interaction.options.getUser("user");
-                
-                try {
-                    const embed = await moderationSystem.removeTimeout(
-                        interaction.guild, 
-                        removeTimeoutUser.id, 
-                        interaction.user
-                    );
-                    await interaction.reply({ embeds: [embed] });
-                    await moderationSystem.logModerationAction(interaction.guild, "remove-timeout", embed);
                 } catch (error) {
                     await interaction.reply({
                         content: `❌ Failed to remove timeout from ${removeTimeoutUser}: ${error.message}`,
@@ -550,7 +537,7 @@ async function handleSlashCommand(interaction) {
     }
 }
 
-// Create help embed - UPDATED FOR LEADERBOARD SYSTEM
+// Create help embed - UPDATED FOR FILE SYSTEM BASED LEADERBOARD
 function createHelpEmbed(category) {
     const { EmbedBuilder } = require("discord.js");
     const embed = new EmbedBuilder()
@@ -579,7 +566,7 @@ function createHelpEmbed(category) {
         switch (category) {
             case "leaderboard":
                 embed.setTitle("📊 Leaderboard Commands")
-                    .setDescription("Commands for viewing server statistics and leaderboards")
+                    .setDescription("Commands for viewing server statistics and leaderboards (File System Based)")
                     .addFields(
                         { name: "/leaderboard [category]", value: "View server leaderboards for specific categories", inline: false },
                         { name: "/lb [category]", value: "Short version of leaderboard command", inline: false },
@@ -594,6 +581,11 @@ function createHelpEmbed(category) {
                     .addFields({
                         name: "💡 Examples",
                         value: "• `/lb kills` - View top killers\n• `/leaderboard totalLifetime` - View most active players\n• `/playerstats 76561198000000000` - View player stats",
+                        inline: false
+                    })
+                    .addFields({
+                        name: "📁 Data Source",
+                        value: "Leaderboard data is read directly from JSON files on the server file system.",
                         inline: false
                     });
                 break;
@@ -715,7 +707,7 @@ app.get("/", (req, res) => {
         tickets: ticketSystem ? ticketSystem.tickets.size : 0,
         teams: teamSystem ? teamSystem.getTeamStats().totalTeams : 0,
         nextWipe: wipeSystem ? wipeSystem.getNextWipeDate().toISOString() : null,
-        leaderboard_api: leaderboardSystem ? "Available" : "Unavailable", // NEW
+        leaderboard_system: leaderboardSystem ? "File System Based" : "Unavailable",
         features: [
             "Raid Curfew",
             "Ticket System", 
@@ -726,7 +718,7 @@ app.get("/", (req, res) => {
             "Message Purge System",
             "Advanced Moderation",
             "Team Management with DM Invitations",
-            "Rust Leaderboards & Player Stats" // NEW
+            "Rust Leaderboards & Player Stats (File System)"
         ],
         systems: {
             curfew: "✅ Active",
@@ -734,7 +726,7 @@ app.get("/", (req, res) => {
             welcome: "✅ Active",
             giveaway: "✅ Active (6h)",
             wipe: "✅ Active (8 AM & 8 PM GMT)",
-            leaderboard: "✅ Active", // NEW
+            leaderboard: "✅ Active (File System)",
             moderation: "✅ Active",
             rules: "✅ Active",
             debug: "✅ Active",
@@ -748,6 +740,10 @@ app.get("/ping", (req, res) => {
 });
 
 app.get("/health", (req, res) => {
+    const leaderboardStatus = leaderboardSystem ? 
+        (leaderboardSystem.checkDataDirectoryAccess() ? "accessible" : "inaccessible") : 
+        "unavailable";
+    
     res.json({
         status: "healthy",
         timestamp: new Date().toISOString(),
@@ -758,8 +754,9 @@ app.get("/health", (req, res) => {
         total_teams: teamSystem ? teamSystem.getTeamStats().totalTeams : 0,
         total_players_in_teams: teamSystem ? teamSystem.getTeamStats().totalPlayers : 0,
         pending_team_invites: teamSystem ? teamSystem.getTeamStats().pendingInvites : 0,
-        leaderboard_api_status: leaderboardSystem ? "connected" : "unavailable", // NEW
-        systems_active: 10, // Updated from 9 to 10
+        leaderboard_system_status: leaderboardStatus,
+        leaderboard_files_count: leaderboardSystem ? leaderboardSystem.listAvailableFiles().length : 0,
+        systems_active: 10,
         memory_usage: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + "MB"
     });
 });
@@ -805,11 +802,12 @@ console.log("🚫 Curfew System: ENABLED");
 console.log("👋 Welcome System: ENABLED");
 console.log("🎁 Giveaway System: ENABLED (6 hour intervals)");
 console.log("🔄 Wipe System: ENABLED (8 AM & 8 PM GMT)");
-console.log("📊 Leaderboard System: ENABLED"); // NEW
+console.log("📊 Leaderboard System: ENABLED (File System Based)");
 console.log("🛡️ Moderation System: ENABLED");
 console.log("📋 Rules System: ENABLED");
 console.log("🔧 Debug System: ENABLED");
 console.log("👥 Team System: ENABLED (DM Invitations)");
+console.log("📁 Leaderboard Data Path:", config.external.rustLeaderboardDataPath || "/opt/Leaderboard/data/StatLeaderboardAPI/");
 
 // Validate configuration and login
 if (validateConfig()) {

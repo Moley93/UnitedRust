@@ -64,14 +64,13 @@ const config = {
         logModerationActions: process.env.LOG_MODERATION_ACTIONS !== "false", // Default true
     },
 
-    // External API Keys and Tokens (updated for leaderboard system)
+    // External API Keys and Tokens (UPDATED for file system based leaderboard)
     external: {
         // Steam API key (for future Steam integration)
         steamApiKey: process.env.STEAM_API_KEY || process.env["STEAM_API_KEY"] || "",
         
-        // Rust game server API (UPDATED for leaderboard system)
-        rustServerApiKey: process.env.RUST_SERVER_API_KEY || process.env["RUST_SERVER_API_KEY"] || "",
-        rustServerApiUrl: process.env.RUST_API_URL || process.env["RUST_API_URL"] || "http://localhost:3001",
+        // Rust leaderboard data directory (UPDATED - no longer API based)
+        rustLeaderboardDataPath: process.env.RUST_LEADERBOARD_DATA_PATH || process.env["RUST_LEADERBOARD_DATA_PATH"] || "/opt/Leaderboard/data/StatLeaderboardAPI/",
         
         // Database connection (if you add database later)
         databaseUrl: process.env.DATABASE_URL || process.env["DATABASE_URL"] || "",
@@ -167,9 +166,16 @@ function validateConfig() {
         warnings.push("MODERATOR_ROLE_ID is not configured - moderation features may be limited");
     }
     
-    // NEW: Leaderboard system warnings
-    if (!config.external.rustServerApiUrl || config.external.rustServerApiUrl === "http://localhost:3001") {
-        warnings.push("RUST_API_URL is not properly configured - leaderboard system may not work");
+    // UPDATED: File system based leaderboard warnings
+    const fs = require('fs');
+    if (!fs.existsSync(config.external.rustLeaderboardDataPath)) {
+        warnings.push("RUST_LEADERBOARD_DATA_PATH directory does not exist - leaderboard system may not work");
+    } else {
+        try {
+            fs.accessSync(config.external.rustLeaderboardDataPath, fs.constants.R_OK);
+        } catch (error) {
+            warnings.push("RUST_LEADERBOARD_DATA_PATH directory is not readable - leaderboard system may not work");
+        }
     }
 
     // Display results
@@ -191,6 +197,8 @@ function validateConfig() {
 
 // Helper function to get all configured tokens (for debugging - don't log sensitive values)
 function getConfigSummary() {
+    const fs = require('fs');
+    
     return {
         hasDiscordToken: !!config.token,
         hasClientId: !!config.clientId,
@@ -209,8 +217,15 @@ function getConfigSummary() {
         },
         external: {
             hasSteamApi: !!config.external.steamApiKey,
-            hasRustServerApi: !!config.external.rustServerApiKey,
-            hasRustApiUrl: !!config.external.rustServerApiUrl && config.external.rustServerApiUrl !== "http://localhost:3001", // NEW
+            hasLeaderboardDataPath: fs.existsSync(config.external.rustLeaderboardDataPath),
+            leaderboardDataPathReadable: (() => {
+                try {
+                    fs.accessSync(config.external.rustLeaderboardDataPath, fs.constants.R_OK);
+                    return true;
+                } catch {
+                    return false;
+                }
+            })(),
             hasDatabase: !!config.external.databaseUrl,
             hasWebhook: !!config.external.webhookUrl,
         },
@@ -268,10 +283,17 @@ module.exports = {
         announcementHours: config.behavior.wipeAnnouncementHours
     }),
     
-    // NEW: Leaderboard system helpers
-    getRustApiUrl: () => config.external.rustServerApiUrl,
-    getRustApiKey: () => config.external.rustServerApiKey,
-    hasRustApiConfigured: () => !!(config.external.rustServerApiUrl && config.external.rustServerApiUrl !== "http://localhost:3001"),
+    // UPDATED: File system based leaderboard helpers
+    getLeaderboardDataPath: () => config.external.rustLeaderboardDataPath,
+    hasLeaderboardDataConfigured: () => {
+        const fs = require('fs');
+        try {
+            return fs.existsSync(config.external.rustLeaderboardDataPath) && 
+                   fs.statSync(config.external.rustLeaderboardDataPath).isDirectory();
+        } catch {
+            return false;
+        }
+    },
     
     // Environment helpers
     isDevelopment: () => config.server.environment === "development",
@@ -279,5 +301,5 @@ module.exports = {
     
     // Token validation helpers
     hasRequiredTokens: () => !!(config.token && config.clientId && config.guildId),
-    hasOptionalIntegrations: () => !!(config.external.steamApiKey || config.external.rustServerApiKey),
+    hasOptionalIntegrations: () => !!(config.external.steamApiKey || config.external.rustLeaderboardDataPath),
 };

@@ -1,13 +1,16 @@
-// Rust Leaderboard System for UnitedRust Discord Bot
+// Rust Leaderboard System for UnitedRust Discord Bot - File System Version
 const { EmbedBuilder } = require("discord.js");
+const fs = require("fs");
+const path = require("path");
 
 class LeaderboardSystem {
     constructor(client, config) {
         this.client = client;
         this.config = config;
-        this.apiBaseUrl = process.env.RUST_API_URL || "http://localhost:3001";
+        // Updated to use file system instead of API
+        this.dataDirectory = "/opt/Leaderboard/data/StatLeaderboardAPI/";
         
-        // Category mappings with display names and descriptions
+        // Category mappings with display names, descriptions, and file mappings
         this.categories = {
             // Materials
             stones: {
@@ -15,28 +18,32 @@ class LeaderboardSystem {
                 emoji: "🪨",
                 description: "Most stone gathered",
                 unit: "",
-                type: "material"
+                type: "material",
+                filename: "leaderboard_stones.json"
             },
             wood: {
                 name: "Wood Gathered",
                 emoji: "🪵",
                 description: "Most wood gathered",
                 unit: "",
-                type: "material"
+                type: "material",
+                filename: "leaderboard_wood.json"
             },
             sulfurOre: {
                 name: "Sulfur Ore",
                 emoji: "💎",
                 description: "Most sulfur ore gathered",
                 unit: "",
-                type: "material"
+                type: "material",
+                filename: "leaderboard_sulfurOre.json"
             },
             metalOre: {
                 name: "Metal Ore",
                 emoji: "⛏️",
                 description: "Most metal ore gathered",
                 unit: "",
-                type: "material"
+                type: "material",
+                filename: "leaderboard_metalOre.json"
             },
             
             // PvP Stats
@@ -45,28 +52,32 @@ class LeaderboardSystem {
                 emoji: "⚔️",
                 description: "Most PvP kills",
                 unit: "",
-                type: "pvp"
+                type: "pvp",
+                filename: "leaderboard_kills.json"
             },
             deaths: {
                 name: "Deaths",
                 emoji: "💀",
                 description: "Most deaths",
                 unit: "",
-                type: "pvp"
+                type: "pvp",
+                filename: "leaderboard_deaths.json"
             },
             kdRatio: {
                 name: "K/D Ratio",
                 emoji: "🎯",
                 description: "Highest kill/death ratio",
                 unit: "",
-                type: "pvp"
+                type: "pvp",
+                filename: "leaderboard_kdRatio.json"
             },
             accuracy: {
                 name: "PvP Accuracy",
                 emoji: "🏹",
                 description: "Highest PvP hit accuracy",
                 unit: "%",
-                type: "pvp"
+                type: "pvp",
+                filename: "leaderboard_accuracy.json"
             },
             
             // Time Stats
@@ -75,21 +86,24 @@ class LeaderboardSystem {
                 emoji: "⏰",
                 description: "Total playtime across all wipes",
                 unit: "time",
-                type: "time"
+                type: "time",
+                filename: "leaderboard_totalLifetime.json"
             },
             sinceWipe: {
                 name: "Wipe Playtime",
                 emoji: "🔄",
                 description: "Playtime since last wipe",
                 unit: "time",
-                type: "time"
+                type: "time",
+                filename: "leaderboard_sinceWipe.json"
             },
             afkTime: {
                 name: "AFK Time",
                 emoji: "😴",
                 description: "Most AFK time logged",
                 unit: "time",
-                type: "time"
+                type: "time",
+                filename: "leaderboard_afkTime.json"
             }
         };
     }
@@ -132,40 +146,168 @@ class LeaderboardSystem {
         }
     }
 
-    // Fetch leaderboard data from API
+    // Check if data directory exists and is accessible
+    checkDataDirectoryAccess() {
+        try {
+            if (!fs.existsSync(this.dataDirectory)) {
+                console.error(`❌ Leaderboard data directory not found: ${this.dataDirectory}`);
+                return false;
+            }
+
+            // Test read access
+            fs.accessSync(this.dataDirectory, fs.constants.R_OK);
+            console.log(`✅ Leaderboard data directory accessible: ${this.dataDirectory}`);
+            return true;
+        } catch (error) {
+            console.error(`❌ Cannot access leaderboard data directory: ${error.message}`);
+            return false;
+        }
+    }
+
+    // Read leaderboard data from JSON file
     async fetchLeaderboard(category) {
         try {
-            const response = await fetch(`${this.apiBaseUrl}/leaderboard/${category}`);
-            
-            if (!response.ok) {
-                if (response.status === 404) {
-                    throw new Error("Invalid category");
-                }
-                throw new Error(`API Error: ${response.status}`);
+            const categoryInfo = this.categories[category];
+            if (!categoryInfo) {
+                throw new Error("Invalid category");
             }
+
+            const filePath = path.join(this.dataDirectory, categoryInfo.filename);
             
-            const data = await response.json();
-            return data;
+            // Check if file exists
+            if (!fs.existsSync(filePath)) {
+                console.error(`❌ Leaderboard file not found: ${filePath}`);
+                throw new Error("Leaderboard data file not found");
+            }
+
+            // Read file content
+            const fileContent = fs.readFileSync(filePath, 'utf8');
+            
+            if (!fileContent.trim()) {
+                console.warn(`⚠️ Leaderboard file is empty: ${filePath}`);
+                return [];
+            }
+
+            // Parse JSON data
+            const data = JSON.parse(fileContent);
+            
+            // Handle different possible data structures
+            let leaderboardData = [];
+            
+            if (Array.isArray(data)) {
+                leaderboardData = data;
+            } else if (data.leaderboard && Array.isArray(data.leaderboard)) {
+                leaderboardData = data.leaderboard;
+            } else if (data.data && Array.isArray(data.data)) {
+                leaderboardData = data.data;
+            } else {
+                console.warn(`⚠️ Unexpected data structure in ${filePath}:`, Object.keys(data));
+                // Try to extract any array from the data
+                const arrayData = Object.values(data).find(value => Array.isArray(value));
+                if (arrayData) {
+                    leaderboardData = arrayData;
+                }
+            }
+
+            // Ensure we have the required fields and sort by value (descending)
+            const processedData = leaderboardData
+                .filter(entry => entry && (entry.playerName || entry.name) && (entry.value !== undefined))
+                .map(entry => ({
+                    playerName: entry.playerName || entry.name || 'Unknown Player',
+                    value: entry.value || 0,
+                    steamId: entry.steamId || entry.id || null
+                }))
+                .sort((a, b) => b.value - a.value)
+                .slice(0, 15); // Limit to top 15
+
+            console.log(`✅ Loaded ${processedData.length} entries from ${categoryInfo.filename}`);
+            return processedData;
+
         } catch (error) {
-            console.error(`❌ Error fetching leaderboard for ${category}:`, error);
+            console.error(`❌ Error reading leaderboard for ${category}:`, error);
             throw error;
         }
     }
 
-    // Fetch individual player stats from API
+    // Fetch individual player stats (aggregate from all files)
     async fetchPlayerStats(steamId) {
         try {
-            const response = await fetch(`${this.apiBaseUrl}/stats/${steamId}`);
-            
-            if (!response.ok) {
-                if (response.status === 404) {
-                    throw new Error("Player not found");
+            const playerStats = {
+                steamId: steamId,
+                playerName: 'Unknown Player',
+                materials: {},
+                pvp: {},
+                time: {}
+            };
+
+            let playerFound = false;
+
+            // Read data from all category files to build comprehensive stats
+            for (const [categoryKey, categoryInfo] of Object.entries(this.categories)) {
+                try {
+                    const filePath = path.join(this.dataDirectory, categoryInfo.filename);
+                    
+                    if (!fs.existsSync(filePath)) {
+                        continue;
+                    }
+
+                    const fileContent = fs.readFileSync(filePath, 'utf8');
+                    if (!fileContent.trim()) continue;
+
+                    const data = JSON.parse(fileContent);
+                    let leaderboardData = [];
+                    
+                    if (Array.isArray(data)) {
+                        leaderboardData = data;
+                    } else if (data.leaderboard && Array.isArray(data.leaderboard)) {
+                        leaderboardData = data.leaderboard;
+                    } else if (data.data && Array.isArray(data.data)) {
+                        leaderboardData = data.data;
+                    } else {
+                        const arrayData = Object.values(data).find(value => Array.isArray(value));
+                        if (arrayData) leaderboardData = arrayData;
+                    }
+
+                    // Find player in this category's data
+                    const playerEntry = leaderboardData.find(entry => 
+                        entry && (entry.steamId === steamId || entry.id === steamId)
+                    );
+
+                    if (playerEntry) {
+                        playerFound = true;
+                        
+                        // Update player name if we don't have it yet
+                        if (playerStats.playerName === 'Unknown Player' && (playerEntry.playerName || playerEntry.name)) {
+                            playerStats.playerName = playerEntry.playerName || playerEntry.name;
+                        }
+
+                        // Categorize the stat
+                        const value = playerEntry.value || 0;
+                        
+                        if (categoryInfo.type === 'material') {
+                            playerStats.materials[categoryKey] = value;
+                        } else if (categoryInfo.type === 'pvp') {
+                            if (categoryKey === 'accuracy') {
+                                playerStats.pvp.accuracyPercent = value;
+                            } else {
+                                playerStats.pvp[categoryKey] = value;
+                            }
+                        } else if (categoryInfo.type === 'time') {
+                            playerStats.time[categoryKey] = value;
+                        }
+                    }
+                } catch (fileError) {
+                    console.warn(`⚠️ Error reading ${categoryInfo.filename}:`, fileError.message);
+                    continue;
                 }
-                throw new Error(`API Error: ${response.status}`);
             }
-            
-            const data = await response.json();
-            return data;
+
+            if (!playerFound) {
+                throw new Error("Player not found");
+            }
+
+            return playerStats;
+
         } catch (error) {
             console.error(`❌ Error fetching player stats for ${steamId}:`, error);
             throw error;
@@ -175,6 +317,14 @@ class LeaderboardSystem {
     // Handle leaderboard command
     async handleLeaderboardCommand(interaction) {
         try {
+            // Check data directory access first
+            if (!this.checkDataDirectoryAccess()) {
+                return interaction.reply({
+                    content: "❌ Leaderboard system is currently unavailable. Data directory not accessible.",
+                    ephemeral: true,
+                });
+            }
+
             const category = interaction.options.getString("category") || "kills";
             
             if (!this.categories[category]) {
@@ -239,8 +389,10 @@ class LeaderboardSystem {
             let errorMessage = "❌ An error occurred while fetching the leaderboard.";
             if (error.message === "Invalid category") {
                 errorMessage = "❌ Invalid leaderboard category specified.";
-            } else if (error.message.includes("API Error")) {
-                errorMessage = "❌ Unable to connect to the game server API. Please try again later.";
+            } else if (error.message.includes("not found")) {
+                errorMessage = "❌ Leaderboard data file not found. Please contact an administrator.";
+            } else if (error.message.includes("access")) {
+                errorMessage = "❌ Cannot access leaderboard data files. Please contact an administrator.";
             }
 
             if (interaction.deferred) {
@@ -254,6 +406,14 @@ class LeaderboardSystem {
     // Handle player stats command
     async handlePlayerStatsCommand(interaction) {
         try {
+            // Check data directory access first
+            if (!this.checkDataDirectoryAccess()) {
+                return interaction.reply({
+                    content: "❌ Leaderboard system is currently unavailable. Data directory not accessible.",
+                    ephemeral: true,
+                });
+            }
+
             const steamId = interaction.options.getString("steamid");
             
             if (!steamId || steamId.length < 17) {
@@ -282,41 +442,56 @@ class LeaderboardSystem {
                 .setFooter({ text: "UnitedRust Player Statistics" });
 
             // Materials section
-            if (playerData.materials) {
+            if (playerData.materials && Object.keys(playerData.materials).length > 0) {
                 const materials = playerData.materials;
-                embed.addFields({
-                    name: "🪨 Materials Gathered",
-                    value: `**Stone:** ${this.formatNumber(materials.stones)}\n` +
-                           `**Wood:** ${this.formatNumber(materials.wood)}\n` +
-                           `**Sulfur Ore:** ${this.formatNumber(materials.sulfurOre)}\n` +
-                           `**Metal Ore:** ${this.formatNumber(materials.metalOre)}`,
-                    inline: true
-                });
+                let materialsText = "";
+                if (materials.stones !== undefined) materialsText += `**Stone:** ${this.formatNumber(materials.stones)}\n`;
+                if (materials.wood !== undefined) materialsText += `**Wood:** ${this.formatNumber(materials.wood)}\n`;
+                if (materials.sulfurOre !== undefined) materialsText += `**Sulfur Ore:** ${this.formatNumber(materials.sulfurOre)}\n`;
+                if (materials.metalOre !== undefined) materialsText += `**Metal Ore:** ${this.formatNumber(materials.metalOre)}\n`;
+                
+                if (materialsText) {
+                    embed.addFields({
+                        name: "🪨 Materials Gathered",
+                        value: materialsText.trim(),
+                        inline: true
+                    });
+                }
             }
 
             // PvP section
-            if (playerData.pvp) {
+            if (playerData.pvp && Object.keys(playerData.pvp).length > 0) {
                 const pvp = playerData.pvp;
-                embed.addFields({
-                    name: "⚔️ PvP Statistics",
-                    value: `**Kills:** ${this.formatNumber(pvp.kills)}\n` +
-                           `**Deaths:** ${this.formatNumber(pvp.deaths)}\n` +
-                           `**K/D Ratio:** ${parseFloat(pvp.kdRatio).toFixed(2)}\n` +
-                           `**Accuracy:** ${pvp.accuracyPercent}%`,
-                    inline: true
-                });
+                let pvpText = "";
+                if (pvp.kills !== undefined) pvpText += `**Kills:** ${this.formatNumber(pvp.kills)}\n`;
+                if (pvp.deaths !== undefined) pvpText += `**Deaths:** ${this.formatNumber(pvp.deaths)}\n`;
+                if (pvp.kdRatio !== undefined) pvpText += `**K/D Ratio:** ${parseFloat(pvp.kdRatio).toFixed(2)}\n`;
+                if (pvp.accuracyPercent !== undefined) pvpText += `**Accuracy:** ${pvp.accuracyPercent}%\n`;
+                
+                if (pvpText) {
+                    embed.addFields({
+                        name: "⚔️ PvP Statistics",
+                        value: pvpText.trim(),
+                        inline: true
+                    });
+                }
             }
 
             // Time section
-            if (playerData.time) {
+            if (playerData.time && Object.keys(playerData.time).length > 0) {
                 const time = playerData.time;
-                embed.addFields({
-                    name: "⏰ Time Statistics",
-                    value: `**Total Playtime:** ${this.formatTime(time.totalLifetime)}\n` +
-                           `**Since Wipe:** ${this.formatTime(time.sinceWipe)}\n` +
-                           `**AFK Time:** ${this.formatTime(time.afkTime)}`,
-                    inline: true
-                });
+                let timeText = "";
+                if (time.totalLifetime !== undefined) timeText += `**Total Playtime:** ${this.formatTime(time.totalLifetime)}\n`;
+                if (time.sinceWipe !== undefined) timeText += `**Since Wipe:** ${this.formatTime(time.sinceWipe)}\n`;
+                if (time.afkTime !== undefined) timeText += `**AFK Time:** ${this.formatTime(time.afkTime)}\n`;
+                
+                if (timeText) {
+                    embed.addFields({
+                        name: "⏰ Time Statistics",
+                        value: timeText.trim(),
+                        inline: true
+                    });
+                }
             }
 
             await interaction.editReply({ embeds: [embed] });
@@ -327,8 +502,8 @@ class LeaderboardSystem {
             let errorMessage = "❌ An error occurred while fetching player statistics.";
             if (error.message === "Player not found") {
                 errorMessage = "❌ Player not found. Make sure the Steam ID is correct.";
-            } else if (error.message.includes("API Error")) {
-                errorMessage = "❌ Unable to connect to the game server API. Please try again later.";
+            } else if (error.message.includes("access")) {
+                errorMessage = "❌ Cannot access leaderboard data files. Please contact an administrator.";
             }
 
             if (interaction.deferred) {
@@ -342,6 +517,14 @@ class LeaderboardSystem {
     // Handle top players overview command
     async handleTopPlayersCommand(interaction) {
         try {
+            // Check data directory access first
+            if (!this.checkDataDirectoryAccess()) {
+                return interaction.reply({
+                    content: "❌ Leaderboard system is currently unavailable. Data directory not accessible.",
+                    ephemeral: true,
+                });
+            }
+
             await interaction.deferReply();
 
             // Fetch multiple leaderboards for overview
@@ -448,33 +631,69 @@ class LeaderboardSystem {
         }).join('\n');
     }
 
-    // Test API connection
-    async testApiConnection() {
+    // Test file system access
+    async testFileSystemAccess() {
         try {
-            const response = await fetch(`${this.apiBaseUrl}/leaderboard/kills`);
-            return response.ok;
+            const accessible = this.checkDataDirectoryAccess();
+            if (accessible) {
+                // Try to read one file to test
+                const testFile = path.join(this.dataDirectory, 'leaderboard_kills.json');
+                if (fs.existsSync(testFile)) {
+                    fs.readFileSync(testFile, 'utf8');
+                    return true;
+                }
+            }
+            return false;
         } catch (error) {
-            console.error("❌ API connection test failed:", error);
+            console.error("❌ File system access test failed:", error);
             return false;
         }
     }
 
-    // Get API status for debugging
+    // Get system status for debugging
     async getApiStatus() {
         try {
-            const isConnected = await this.testApiConnection();
+            const isAccessible = await this.testFileSystemAccess();
             return {
-                status: isConnected ? "Connected" : "Disconnected",
-                url: this.apiBaseUrl,
+                status: isAccessible ? "Connected" : "Disconnected",
+                url: this.dataDirectory,
+                type: "File System",
                 timestamp: new Date().toISOString()
             };
         } catch (error) {
             return {
                 status: "Error",
-                url: this.apiBaseUrl,
+                url: this.dataDirectory,
+                type: "File System",
                 error: error.message,
                 timestamp: new Date().toISOString()
             };
+        }
+    }
+
+    // List available data files (for debugging)
+    listAvailableFiles() {
+        try {
+            if (!fs.existsSync(this.dataDirectory)) {
+                return [];
+            }
+
+            const files = fs.readdirSync(this.dataDirectory)
+                .filter(file => file.startsWith('leaderboard_') && file.endsWith('.json'))
+                .map(file => {
+                    const filePath = path.join(this.dataDirectory, file);
+                    const stats = fs.statSync(filePath);
+                    return {
+                        filename: file,
+                        size: stats.size,
+                        modified: stats.mtime
+                    };
+                });
+
+            return files;
+        } catch (error) {
+            console.error("❌ Error listing data files:", error);
+            return [];
         }
     }
 }
