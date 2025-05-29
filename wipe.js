@@ -10,6 +10,12 @@ class WipeSystem {
         this.wipeHour = 19; // 7 PM GMT
         this.wipeMinute = 0; // 00 minutes
         this.mapVoteChannelId = "1371918369946734602"; // Map vote channel ID
+        
+        // BP wipe schedule: First BP wipe is August 2025, then every 3 months
+        this.firstBPWipe = {
+            year: 2025,
+            month: 7 // August (0-indexed, so 7 = August)
+        };
     }
 
     // Calculate the first Thursday of a given month/year
@@ -63,38 +69,51 @@ class WipeSystem {
         return nextWipe;
     }
 
-    // Check if the next wipe is a BP wipe (every 3 months: January, April, July, October)
+    // Check if a given date is a BP wipe (August 2025, then every 3 months)
+    isBPWipeDate(date) {
+        const year = date.getUTCFullYear();
+        const month = date.getUTCMonth();
+        
+        // Calculate months since the first BP wipe
+        const firstBPWipeDate = new Date(this.firstBPWipe.year, this.firstBPWipe.month, 1);
+        const targetDate = new Date(year, month, 1);
+        
+        // Calculate the difference in months
+        const yearDiff = year - this.firstBPWipe.year;
+        const monthDiff = month - this.firstBPWipe.month;
+        const totalMonthsDiff = yearDiff * 12 + monthDiff;
+        
+        // BP wipe if it's exactly divisible by 3 and not before the first BP wipe
+        return totalMonthsDiff >= 0 && totalMonthsDiff % 3 === 0;
+    }
+
+    // Check if the next wipe is a BP wipe
     isNextWipeBPWipe() {
         const nextWipe = this.getNextWipeDate();
-        const wipeMonth = nextWipe.getUTCMonth(); // 0-indexed
-        
-        // BP wipes happen in January (0), April (3), July (6), October (9)
-        return [0, 3, 6, 9].includes(wipeMonth);
+        return this.isBPWipeDate(nextWipe);
     }
 
     // Get next BP wipe date
     getNextBPWipeDate() {
         const now = new Date();
-        const currentYear = now.getUTCFullYear();
-        let currentMonth = now.getUTCMonth();
+        let currentYear = this.firstBPWipe.year;
+        let currentMonth = this.firstBPWipe.month;
         
-        // Find the next BP wipe month (January, April, July, October)
-        const bpWipeMonths = [0, 3, 6, 9]; // January, April, July, October
-        
-        let nextBPWipeMonth = bpWipeMonths.find(month => {
-            const wipeDate = this.getFirstThursdayOfMonth(currentYear, month);
-            return wipeDate > now;
-        });
-        
-        let nextBPWipeYear = currentYear;
-        
-        // If no BP wipe found this year, get January of next year
-        if (nextBPWipeMonth === undefined) {
-            nextBPWipeMonth = 0; // January
-            nextBPWipeYear = currentYear + 1;
+        // Find the next BP wipe date
+        while (true) {
+            const bpWipeDate = this.getFirstThursdayOfMonth(currentYear, currentMonth);
+            
+            if (bpWipeDate > now) {
+                return bpWipeDate;
+            }
+            
+            // Move to next BP wipe (3 months later)
+            currentMonth += 3;
+            if (currentMonth > 11) {
+                currentMonth -= 12;
+                currentYear++;
+            }
         }
-        
-        return this.getFirstThursdayOfMonth(nextBPWipeYear, nextBPWipeMonth);
     }
 
     // Get time remaining until next wipe
@@ -126,7 +145,7 @@ class WipeSystem {
 
     // Get a user-friendly description of when BP wipes occur
     getBPWipeScheduleDescription() {
-        return "Blueprint wipes: Every 3 months (January, April, July, October)";
+        return "Blueprint wipes: Starting August 2025, then every 3 months";
     }
 
     // Get the month name for display
@@ -136,6 +155,33 @@ class WipeSystem {
             "July", "August", "September", "October", "November", "December"
         ];
         return months[monthIndex];
+    }
+
+    // Get all BP wipe months for a given year
+    getBPWipeMonthsForYear(year) {
+        const bpWipeMonths = [];
+        
+        // Start from the first BP wipe and calculate all BP wipes for the given year
+        let currentYear = this.firstBPWipe.year;
+        let currentMonth = this.firstBPWipe.month;
+        
+        while (currentYear <= year) {
+            if (currentYear === year) {
+                bpWipeMonths.push(currentMonth);
+            }
+            
+            // Move to next BP wipe (3 months later)
+            currentMonth += 3;
+            if (currentMonth > 11) {
+                currentMonth -= 12;
+                currentYear++;
+            }
+            
+            // Safety break to prevent infinite loop
+            if (currentYear > year + 1) break;
+        }
+        
+        return bpWipeMonths;
     }
 
     // Send wipe countdown announcement
@@ -417,7 +463,7 @@ class WipeSystem {
         console.log("- Morning announcement: 08:00 GMT daily");
         console.log("- Evening announcement: 20:00 GMT daily");
         console.log("- Wipe schedule: First Thursday of every month at 19:00 GMT");
-        console.log("- BP wipe schedule: Every 3 months (January, April, July, October)");
+        console.log("- BP wipe schedule: Starting August 2025, then every 3 months");
     }
 
     // Send custom wipe announcement
@@ -428,7 +474,7 @@ class WipeSystem {
             const now = new Date();
             const timeDiff = wipeDate.getTime() - now.getTime();
             const wipeMonth = this.getMonthName(wipeDate.getUTCMonth());
-            const isBPWipe = customDate ? [0, 3, 6, 9].includes(wipeDate.getUTCMonth()) : this.isNextWipeBPWipe();
+            const isBPWipe = customDate ? this.isBPWipeDate(wipeDate) : this.isNextWipeBPWipe();
             
             let timeUntilWipe = "Wipe is happening now!";
             if (timeDiff > 0) {
@@ -530,7 +576,7 @@ class WipeSystem {
             
             // Only include future dates
             if (wipeDate > now) {
-                const isBPWipe = [0, 3, 6, 9].includes(currentMonth); // January, April, July, October
+                const isBPWipe = this.isBPWipeDate(wipeDate);
                 wipeDates.push({
                     date: wipeDate,
                     month: this.getMonthName(currentMonth),
@@ -550,6 +596,27 @@ class WipeSystem {
         }
         
         return wipeDates.slice(0, count);
+    }
+
+    // Debug method to show BP wipe schedule
+    getBPWipeSchedule(yearsToShow = 2) {
+        const schedule = [];
+        const startYear = 2025;
+        
+        for (let year = startYear; year < startYear + yearsToShow; year++) {
+            const bpMonths = this.getBPWipeMonthsForYear(year);
+            bpMonths.forEach(month => {
+                const wipeDate = this.getFirstThursdayOfMonth(year, month);
+                schedule.push({
+                    date: wipeDate,
+                    month: this.getMonthName(month),
+                    year: year,
+                    day: wipeDate.getUTCDate()
+                });
+            });
+        }
+        
+        return schedule;
     }
 }
 
