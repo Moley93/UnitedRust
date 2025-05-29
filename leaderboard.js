@@ -217,8 +217,7 @@ class LeaderboardSystem {
                     value: entry.value || 0,
                     steamId: entry.steamId || entry.id || null
                 }))
-                .sort((a, b) => b.value - a.value)
-                .slice(0, 15); // Limit to top 15
+                .sort((a, b) => b.value - a.value);
 
             console.log(`✅ Loaded ${processedData.length} entries from ${categoryInfo.filename}`);
             return processedData;
@@ -226,6 +225,73 @@ class LeaderboardSystem {
         } catch (error) {
             console.error(`❌ Error reading leaderboard for ${category}:`, error);
             throw error;
+        }
+    }
+
+    // Find player's position in a specific leaderboard
+    async findPlayerPosition(steamId, category) {
+        try {
+            const leaderboardData = await this.fetchLeaderboard(category);
+            const playerIndex = leaderboardData.findIndex(entry => entry.steamId === steamId);
+            
+            if (playerIndex === -1) {
+                return {
+                    found: false,
+                    position: null,
+                    value: null,
+                    totalPlayers: leaderboardData.length
+                };
+            }
+
+            return {
+                found: true,
+                position: playerIndex + 1,
+                value: leaderboardData[playerIndex].value,
+                totalPlayers: leaderboardData.length,
+                playerName: leaderboardData[playerIndex].playerName
+            };
+        } catch (error) {
+            console.error(`❌ Error finding player position in ${category}:`, error);
+            return {
+                found: false,
+                position: null,
+                value: null,
+                totalPlayers: 0,
+                error: error.message
+            };
+        }
+    }
+
+    // Search for players by name (partial matching)
+    async searchPlayersByName(searchName) {
+        try {
+            const searchLower = searchName.toLowerCase();
+            const foundPlayers = new Map(); // Use Map to avoid duplicates by steamId
+            
+            // Search through all categories to find matching player names
+            for (const [categoryKey, categoryInfo] of Object.entries(this.categories)) {
+                try {
+                    const leaderboardData = await this.fetchLeaderboard(categoryKey);
+                    
+                    leaderboardData.forEach(entry => {
+                        if (entry.playerName && entry.playerName.toLowerCase().includes(searchLower)) {
+                            if (!foundPlayers.has(entry.steamId)) {
+                                foundPlayers.set(entry.steamId, {
+                                    steamId: entry.steamId,
+                                    playerName: entry.playerName
+                                });
+                            }
+                        }
+                    });
+                } catch (error) {
+                    console.warn(`⚠️ Error searching in ${categoryKey}:`, error.message);
+                }
+            }
+            
+            return Array.from(foundPlayers.values());
+        } catch (error) {
+            console.error(`❌ Error searching for players:`, error);
+            return [];
         }
     }
 
@@ -314,6 +380,407 @@ class LeaderboardSystem {
         }
     }
 
+    // NEW: Handle top 3 from all categories command
+    async handleTop3AllCommand(interaction) {
+        try {
+            // Check data directory access first
+            if (!this.checkDataDirectoryAccess()) {
+                return interaction.reply({
+                    content: "❌ Leaderboard system is currently unavailable. Data directory not accessible.",
+                    ephemeral: true,
+                });
+            }
+
+            await interaction.deferReply();
+
+            const embed = new EmbedBuilder()
+                .setTitle("🏆 Top 3 Players in All Categories")
+                .setDescription("Here are the top 3 players in each leaderboard category!")
+                .setColor(0xffd700) // Gold color
+                .setTimestamp()
+                .setFooter({ text: "UnitedRust Leaderboard - Top 3 Overview" });
+
+            // Fetch top 3 for each category
+            const categoryPromises = Object.entries(this.categories).map(async ([categoryKey, categoryInfo]) => {
+                try {
+                    const leaderboardData = await this.fetchLeaderboard(categoryKey);
+                    const top3 = leaderboardData.slice(0, 3);
+                    
+                    if (top3.length === 0) {
+                        return {
+                            categoryKey,
+                            categoryInfo,
+                            data: "No data available"
+                        };
+                    }
+
+                    const top3Text = top3.map((player, index) => {
+                        const position = this.getPositionEmoji(index + 1);
+                        const value = this.formatValue(player.value, categoryKey);
+                        return `${position} ${player.playerName} - ${value}`;
+                    }).join('\n');
+
+                    return {
+                        categoryKey,
+                        categoryInfo,
+                        data: top3Text
+                    };
+                } catch (error) {
+                    console.warn(`⚠️ Error fetching top 3 for ${categoryKey}:`, error.message);
+                    return {
+                        categoryKey,
+                        categoryInfo,
+                        data: "Data unavailable"
+                    };
+                }
+            });
+
+            const results = await Promise.all(categoryPromises);
+
+            // Group results by type and add fields
+            const materialCategories = results.filter(r => this.categories[r.categoryKey].type === 'material');
+            const pvpCategories = results.filter(r => this.categories[r.categoryKey].type === 'pvp');
+            const timeCategories = results.filter(r => this.categories[r.categoryKey].type === 'time');
+
+            // Add material categories
+            if (materialCategories.length > 0) {
+                materialCategories.forEach(result => {
+                    embed.addFields({
+                        name: `${result.categoryInfo.emoji} ${result.categoryInfo.name}`,
+                        value: result.data,
+                        inline: true
+                    });
+                });
+            }
+
+            // Add PvP categories
+            if (pvpCategories.length > 0) {
+                pvpCategories.forEach(result => {
+                    embed.addFields({
+                        name: `${result.categoryInfo.emoji} ${result.categoryInfo.name}`,
+                        value: result.data,
+                        inline: true
+                    });
+                });
+            }
+
+            // Add time categories
+            if (timeCategories.length > 0) {
+                timeCategories.forEach(result => {
+                    embed.addFields({
+                        name: `${result.categoryInfo.emoji} ${result.categoryInfo.name}`,
+                        value: result.data,
+                        inline: true
+                    });
+                });
+            }
+
+            embed.addFields({
+                name: "📋 Need More Details?",
+                value: "• Use `/lb [category]` for full leaderboards\n• Use `/playerrank [steamid]` to see a player's ranks\n• Use `/findplayer [name]` to search by name",
+                inline: false
+            });
+
+            await interaction.editReply({ embeds: [embed] });
+
+        } catch (error) {
+            console.error("❌ Error handling top3all command:", error);
+            
+            const errorMessage = "❌ An error occurred while fetching the top 3 data.";
+            if (interaction.deferred) {
+                await interaction.editReply({ content: errorMessage });
+            } else {
+                await interaction.reply({ content: errorMessage, ephemeral: true });
+            }
+        }
+    }
+
+    // NEW: Handle player rank command
+    async handlePlayerRankCommand(interaction) {
+        try {
+            // Check data directory access first
+            if (!this.checkDataDirectoryAccess()) {
+                return interaction.reply({
+                    content: "❌ Leaderboard system is currently unavailable. Data directory not accessible.",
+                    ephemeral: true,
+                });
+            }
+
+            const steamId = interaction.options.getString("steamid");
+            
+            if (!steamId || steamId.length < 17) {
+                return interaction.reply({
+                    content: "❌ Please provide a valid Steam ID (17 digits).",
+                    ephemeral: true,
+                });
+            }
+
+            await interaction.deferReply();
+
+            // Get player's position in all categories
+            const positionPromises = Object.entries(this.categories).map(async ([categoryKey, categoryInfo]) => {
+                const position = await this.findPlayerPosition(steamId, categoryKey);
+                return {
+                    categoryKey,
+                    categoryInfo,
+                    position
+                };
+            });
+
+            const results = await Promise.all(positionPromises);
+            
+            // Check if player was found in any category
+            const playerFound = results.some(r => r.position.found);
+            if (!playerFound) {
+                return interaction.editReply({
+                    content: "❌ Player not found in any leaderboard category. Make sure the Steam ID is correct.",
+                });
+            }
+
+            // Get player name from first found result
+            const playerName = results.find(r => r.position.found)?.position.playerName || 'Unknown Player';
+
+            const embed = new EmbedBuilder()
+                .setTitle(`📊 Player Rankings: ${playerName}`)
+                .setDescription(`Ranking positions across all leaderboard categories for Steam ID: \`${steamId}\``)
+                .setColor(0x3498db)
+                .setTimestamp()
+                .setFooter({ text: "UnitedRust Player Rankings" });
+
+            // Group results by type
+            const materialResults = results.filter(r => this.categories[r.categoryKey].type === 'material');
+            const pvpResults = results.filter(r => this.categories[r.categoryKey].type === 'pvp');
+            const timeResults = results.filter(r => this.categories[r.categoryKey].type === 'time');
+
+            // Helper function to format position text
+            const formatPosition = (result) => {
+                if (!result.position.found) {
+                    return "Not ranked";
+                }
+                
+                const value = this.formatValue(result.position.value, result.categoryKey);
+                const rank = result.position.position;
+                const total = result.position.totalPlayers;
+                const percentile = Math.round((1 - (rank - 1) / total) * 100);
+                
+                return `**#${rank}** of ${total} (${percentile}th percentile)\n${value}`;
+            };
+
+            // Add material rankings
+            if (materialResults.length > 0) {
+                const materialText = materialResults.map(result => {
+                    return `${result.categoryInfo.emoji} **${result.categoryInfo.name}:** ${formatPosition(result)}`;
+                }).join('\n\n');
+                
+                embed.addFields({
+                    name: "🪨 Material Gathering Rankings",
+                    value: materialText,
+                    inline: false
+                });
+            }
+
+            // Add PvP rankings
+            if (pvpResults.length > 0) {
+                const pvpText = pvpResults.map(result => {
+                    return `${result.categoryInfo.emoji} **${result.categoryInfo.name}:** ${formatPosition(result)}`;
+                }).join('\n\n');
+                
+                embed.addFields({
+                    name: "⚔️ PvP Rankings",
+                    value: pvpText,
+                    inline: false
+                });
+            }
+
+            // Add time rankings
+            if (timeResults.length > 0) {
+                const timeText = timeResults.map(result => {
+                    return `${result.categoryInfo.emoji} **${result.categoryInfo.name}:** ${formatPosition(result)}`;
+                }).join('\n\n');
+                
+                embed.addFields({
+                    name: "⏰ Time Rankings",
+                    value: timeText,
+                    inline: false
+                });
+            }
+
+            // Add overall summary
+            const totalRanked = results.filter(r => r.position.found).length;
+            const totalCategories = results.length;
+            const topRanks = results.filter(r => r.position.found && r.position.position <= 3).length;
+            
+            embed.addFields({
+                name: "📈 Overall Summary",
+                value: `• Ranked in **${totalRanked}/${totalCategories}** categories\n• **${topRanks}** top-3 positions\n• Use \`/playerstats ${steamId}\` for detailed stats`,
+                inline: false
+            });
+
+            await interaction.editReply({ embeds: [embed] });
+
+        } catch (error) {
+            console.error("❌ Error handling playerrank command:", error);
+            
+            let errorMessage = "❌ An error occurred while fetching player rankings.";
+            if (error.message === "Player not found") {
+                errorMessage = "❌ Player not found. Make sure the Steam ID is correct.";
+            }
+
+            if (interaction.deferred) {
+                await interaction.editReply({ content: errorMessage });
+            } else {
+                await interaction.reply({ content: errorMessage, ephemeral: true });
+            }
+        }
+    }
+
+    // NEW: Handle find player command
+    async handleFindPlayerCommand(interaction) {
+        try {
+            // Check data directory access first
+            if (!this.checkDataDirectoryAccess()) {
+                return interaction.reply({
+                    content: "❌ Leaderboard system is currently unavailable. Data directory not accessible.",
+                    ephemeral: true,
+                });
+            }
+
+            const searchName = interaction.options.getString("playername");
+            
+            if (!searchName || searchName.length < 2) {
+                return interaction.reply({
+                    content: "❌ Please provide at least 2 characters to search for.",
+                    ephemeral: true,
+                });
+            }
+
+            await interaction.deferReply();
+
+            // Search for players
+            const foundPlayers = await this.searchPlayersByName(searchName);
+            
+            if (foundPlayers.length === 0) {
+                return interaction.editReply({
+                    content: `❌ No players found matching "${searchName}". Try a different search term.`,
+                });
+            }
+
+            if (foundPlayers.length === 1) {
+                // If only one player found, show their rankings directly
+                const player = foundPlayers[0];
+                
+                // Get player's position in all categories
+                const positionPromises = Object.entries(this.categories).map(async ([categoryKey, categoryInfo]) => {
+                    const position = await this.findPlayerPosition(player.steamId, categoryKey);
+                    return {
+                        categoryKey,
+                        categoryInfo,
+                        position
+                    };
+                });
+
+                const results = await Promise.all(positionPromises);
+
+                const embed = new EmbedBuilder()
+                    .setTitle(`📊 Player Rankings: ${player.playerName}`)
+                    .setDescription(`Found player matching "${searchName}" - showing all rankings\nSteam ID: \`${player.steamId}\``)
+                    .setColor(0x00ff00)
+                    .setTimestamp()
+                    .setFooter({ text: "UnitedRust Player Search Results" });
+
+                // Helper function to format position text
+                const formatPosition = (result) => {
+                    if (!result.position.found) {
+                        return "Not ranked";
+                    }
+                    
+                    const value = this.formatValue(result.position.value, result.categoryKey);
+                    const rank = result.position.position;
+                    const total = result.position.totalPlayers;
+                    
+                    return `#${rank} of ${total} - ${value}`;
+                };
+
+                // Show top rankings only (top 10 in any category)
+                const significantRankings = results.filter(r => r.position.found && r.position.position <= 10);
+                
+                if (significantRankings.length > 0) {
+                    const rankingText = significantRankings
+                        .sort((a, b) => a.position.position - b.position.position)
+                        .map(result => {
+                            return `${result.categoryInfo.emoji} **${result.categoryInfo.name}:** ${formatPosition(result)}`;
+                        }).join('\n');
+                    
+                    embed.addFields({
+                        name: "🏆 Top 10 Rankings",
+                        value: rankingText,
+                        inline: false
+                    });
+                }
+
+                // Add summary
+                const totalRanked = results.filter(r => r.position.found).length;
+                const topRanks = results.filter(r => r.position.found && r.position.position <= 3).length;
+                
+                embed.addFields({
+                    name: "📈 Summary",
+                    value: `• Ranked in **${totalRanked}** categories\n• **${topRanks}** top-3 positions\n• Use \`/playerrank ${player.steamId}\` for all rankings`,
+                    inline: false
+                });
+
+                await interaction.editReply({ embeds: [embed] });
+
+            } else {
+                // Multiple players found, show selection list
+                const embed = new EmbedBuilder()
+                    .setTitle(`👥 Multiple Players Found (${foundPlayers.length})`)
+                    .setDescription(`Found multiple players matching "${searchName}". Use \`/playerrank\` with their Steam ID to see rankings:`)
+                    .setColor(0xff9500)
+                    .setTimestamp()
+                    .setFooter({ text: "UnitedRust Player Search Results" });
+
+                // Limit to first 10 results to avoid embed limits
+                const displayPlayers = foundPlayers.slice(0, 10);
+                
+                const playerList = displayPlayers.map((player, index) => {
+                    return `**${index + 1}.** ${player.playerName}\n└ Steam ID: \`${player.steamId}\``;
+                }).join('\n\n');
+
+                embed.addFields({
+                    name: "🔍 Search Results",
+                    value: playerList,
+                    inline: false
+                });
+
+                if (foundPlayers.length > 10) {
+                    embed.addFields({
+                        name: "ℹ️ More Results",
+                        value: `Showing first 10 of ${foundPlayers.length} results. Try a more specific search term.`,
+                        inline: false
+                    });
+                }
+
+                embed.addFields({
+                    name: "📋 Next Steps",
+                    value: "• Copy a Steam ID and use `/playerrank [steamid]` to see full rankings\n• Use `/playerstats [steamid]` for detailed statistics\n• Try a more specific search term to narrow results",
+                    inline: false
+                });
+
+                await interaction.editReply({ embeds: [embed] });
+            }
+
+        } catch (error) {
+            console.error("❌ Error handling findplayer command:", error);
+            
+            const errorMessage = "❌ An error occurred while searching for players.";
+            if (interaction.deferred) {
+                await interaction.editReply({ content: errorMessage });
+            } else {
+                await interaction.reply({ content: errorMessage, ephemeral: true });
+            }
+        }
+    }
+
     // Handle leaderboard command
     async handleLeaderboardCommand(interaction) {
         try {
@@ -348,13 +815,14 @@ class LeaderboardSystem {
             // Create leaderboard embed
             const embed = new EmbedBuilder()
                 .setTitle(`${categoryInfo.emoji} ${categoryInfo.name} Leaderboard`)
-                .setDescription(`${categoryInfo.description} - Top ${leaderboardData.length} players`)
+                .setDescription(`${categoryInfo.description} - Top ${Math.min(leaderboardData.length, 15)} players`)
                 .setColor(this.getColorForCategory(categoryInfo.type))
                 .setTimestamp()
                 .setFooter({ text: "UnitedRust Leaderboard System" });
 
-            // Add leaderboard entries
-            const leaderboardText = leaderboardData.map((player, index) => {
+            // Add leaderboard entries (limit to 15 to avoid embed limits)
+            const displayData = leaderboardData.slice(0, 15);
+            const leaderboardText = displayData.map((player, index) => {
                 const position = this.getPositionEmoji(index + 1);
                 const value = this.formatValue(player.value, category);
                 return `${position} **${player.playerName}** - ${value}`;
@@ -586,7 +1054,7 @@ class LeaderboardSystem {
 
             embed.addFields({
                 name: "📋 Available Commands",
-                value: "• `/lb [category]` - View specific leaderboard\n• `/playerstats [steamid]` - View individual player stats\n• `/topplayers` - This overview",
+                value: "• `/lb [category]` - View specific leaderboard\n• `/playerstats [steamid]` - View individual player stats\n• `/top3all` - View top 3 in all categories\n• `/playerrank [steamid]` - View player's rankings\n• `/findplayer [name]` - Search players by name",
                 inline: false
             });
 

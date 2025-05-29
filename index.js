@@ -193,6 +193,19 @@ async function handleSlashCommand(interaction) {
                 await leaderboardSystem.handleTopPlayersCommand(interaction);
                 break;
 
+            // NEW LEADERBOARD COMMANDS
+            case "top3all":
+                await leaderboardSystem.handleTop3AllCommand(interaction);
+                break;
+
+            case "playerrank":
+                await leaderboardSystem.handlePlayerRankCommand(interaction);
+                break;
+
+            case "findplayer":
+                await leaderboardSystem.handleFindPlayerCommand(interaction);
+                break;
+
             // Curfew Commands
             case "curfew":
                 await curfewSystem.handleCurfewCommand(interaction);
@@ -283,6 +296,31 @@ async function handleSlashCommand(interaction) {
                     );
                     await interaction.reply({ embeds: [embed] });
                     await moderationSystem.logModerationAction(interaction.guild, "timeout", embed);
+                } catch (error) {
+                    await interaction.reply({
+                        content: `❌ Failed to timeout ${timeoutUser}: ${error.message}`,
+                        ephemeral: true,
+                    });
+                }
+                break;
+
+            case "remove-timeout":
+                if (!moderationSystem.hasModPermissions(member)) {
+                    return interaction.reply({
+                        content: "❌ You don't have permission to use this command.",
+                        ephemeral: true,
+                    });
+                }
+                const removeTimeoutUser = interaction.options.getUser("user");
+                
+                try {
+                    const embed = await moderationSystem.removeTimeout(
+                        interaction.guild, 
+                        removeTimeoutUser.id, 
+                        interaction.user
+                    );
+                    await interaction.reply({ embeds: [embed] });
+                    await moderationSystem.logModerationAction(interaction.guild, "remove-timeout", embed);
                 } catch (error) {
                     await interaction.reply({
                         content: `❌ Failed to remove timeout from ${removeTimeoutUser}: ${error.message}`,
@@ -537,7 +575,7 @@ async function handleSlashCommand(interaction) {
     }
 }
 
-// Create help embed - UPDATED FOR FILE SYSTEM BASED LEADERBOARD
+// Create help embed - UPDATED FOR NEW LEADERBOARD COMMANDS
 function createHelpEmbed(category) {
     const { EmbedBuilder } = require("discord.js");
     const embed = new EmbedBuilder()
@@ -571,7 +609,10 @@ function createHelpEmbed(category) {
                         { name: "/leaderboard [category]", value: "View server leaderboards for specific categories", inline: false },
                         { name: "/lb [category]", value: "Short version of leaderboard command", inline: false },
                         { name: "/playerstats <steamid>", value: "View detailed stats for a specific player", inline: false },
-                        { name: "/topplayers", value: "View overview of top players across categories", inline: false }
+                        { name: "/topplayers", value: "View overview of top players across categories", inline: false },
+                        { name: "/top3all", value: "**NEW:** View top 3 players from every category", inline: false },
+                        { name: "/playerrank <steamid>", value: "**NEW:** View a player's ranking position in all categories", inline: false },
+                        { name: "/findplayer <name>", value: "**NEW:** Search for players by name and show their rankings", inline: false }
                     )
                     .addFields({
                         name: "📋 Available Categories",
@@ -580,7 +621,12 @@ function createHelpEmbed(category) {
                     })
                     .addFields({
                         name: "💡 Examples",
-                        value: "• `/lb kills` - View top killers\n• `/leaderboard totalLifetime` - View most active players\n• `/playerstats 76561198000000000` - View player stats",
+                        value: "• `/lb kills` - View top killers\n• `/top3all` - See top 3 in every category\n• `/playerrank 76561198000000000` - View player's ranks\n• `/findplayer john` - Search for players named john",
+                        inline: false
+                    })
+                    .addFields({
+                        name: "🔍 Search Tips",
+                        value: "• Use partial names in `/findplayer` (e.g., 'john' matches 'Johnny')\n• Steam IDs are 17 digits long\n• Rankings show percentile and total players",
                         inline: false
                     })
                     .addFields({
@@ -718,7 +764,10 @@ app.get("/", (req, res) => {
             "Message Purge System",
             "Advanced Moderation",
             "Team Management with DM Invitations",
-            "Rust Leaderboards & Player Stats (File System)"
+            "Rust Leaderboards & Player Stats (File System)",
+            "NEW: Top 3 All Categories",
+            "NEW: Player Rankings",
+            "NEW: Player Search by Name"
         ],
         systems: {
             curfew: "✅ Active",
@@ -807,6 +856,10 @@ console.log("🛡️ Moderation System: ENABLED");
 console.log("📋 Rules System: ENABLED");
 console.log("🔧 Debug System: ENABLED");
 console.log("👥 Team System: ENABLED (DM Invitations)");
+console.log("🆕 NEW Leaderboard Commands: ENABLED");
+console.log("   - /top3all - Top 3 from all categories");
+console.log("   - /playerrank - Player rankings across all categories");
+console.log("   - /findplayer - Search players by name");
 console.log("📁 Leaderboard Data Path:", config.external.rustLeaderboardDataPath || "/opt/Leaderboard/data/StatLeaderboardAPI/");
 
 // Validate configuration and login

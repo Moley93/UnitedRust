@@ -10,7 +10,7 @@ class CommandManager {
     // Define all slash commands
     defineCommands() {
         return [
-            // Leaderboard Commands - NEW
+            // Leaderboard Commands - UPDATED WITH NEW COMMANDS
             new SlashCommandBuilder()
                 .setName("leaderboard")
                 .setDescription("View server leaderboards")
@@ -78,6 +78,35 @@ class CommandManager {
             new SlashCommandBuilder()
                 .setName("topplayers")
                 .setDescription("View an overview of top players across different categories"),
+
+            // NEW LEADERBOARD COMMANDS
+            new SlashCommandBuilder()
+                .setName("top3all")
+                .setDescription("View top 3 players from each leaderboard category"),
+
+            new SlashCommandBuilder()
+                .setName("playerrank")
+                .setDescription("View a player's ranking position across all leaderboard categories")
+                .addStringOption((option) =>
+                    option
+                        .setName("steamid")
+                        .setDescription("Player's Steam ID (17 digits)")
+                        .setRequired(true)
+                        .setMinLength(17)
+                        .setMaxLength(17)
+                ),
+
+            new SlashCommandBuilder()
+                .setName("findplayer")
+                .setDescription("Search for a player by name and show their rankings")
+                .addStringOption((option) =>
+                    option
+                        .setName("playername")
+                        .setDescription("Player's name (partial matches allowed)")
+                        .setRequired(true)
+                        .setMinLength(2)
+                        .setMaxLength(50)
+                ),
 
             // Raid Curfew Commands
             new SlashCommandBuilder()
@@ -445,7 +474,7 @@ class CommandManager {
         return true;
     }
 
-    // Get commands by category
+    // Get commands by category - UPDATED
     getCommandsByCategory() {
         return {
             moderation: [
@@ -476,7 +505,7 @@ class CommandManager {
                 "wipe", "send-wipe-announcement"
             ],
             leaderboard: [
-                "leaderboard", "lb", "playerstats", "topplayers"
+                "leaderboard", "lb", "playerstats", "topplayers", "top3all", "playerrank", "findplayer"
             ]
         };
     }
