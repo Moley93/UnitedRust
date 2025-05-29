@@ -1,4 +1,4 @@
-// Wipe Countdown System for UnitedRust Discord Bot - UPDATED FOR MONTHLY WIPES
+// Wipe Countdown System for UnitedRust Discord Bot - UPDATED FOR MONTHLY WIPES WITH QUARTERLY BP WIPES
 const { EmbedBuilder, PermissionFlagsBits } = require("discord.js");
 const cron = require("node-cron");
 
@@ -9,6 +9,7 @@ class WipeSystem {
         this.wipeDay = 4; // Thursday (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
         this.wipeHour = 19; // 7 PM GMT
         this.wipeMinute = 0; // 00 minutes
+        this.mapVoteChannelId = "1371918369946734602"; // Map vote channel ID
     }
 
     // Calculate the first Thursday of a given month/year
@@ -62,6 +63,40 @@ class WipeSystem {
         return nextWipe;
     }
 
+    // Check if the next wipe is a BP wipe (every 3 months: January, April, July, October)
+    isNextWipeBPWipe() {
+        const nextWipe = this.getNextWipeDate();
+        const wipeMonth = nextWipe.getUTCMonth(); // 0-indexed
+        
+        // BP wipes happen in January (0), April (3), July (6), October (9)
+        return [0, 3, 6, 9].includes(wipeMonth);
+    }
+
+    // Get next BP wipe date
+    getNextBPWipeDate() {
+        const now = new Date();
+        const currentYear = now.getUTCFullYear();
+        let currentMonth = now.getUTCMonth();
+        
+        // Find the next BP wipe month (January, April, July, October)
+        const bpWipeMonths = [0, 3, 6, 9]; // January, April, July, October
+        
+        let nextBPWipeMonth = bpWipeMonths.find(month => {
+            const wipeDate = this.getFirstThursdayOfMonth(currentYear, month);
+            return wipeDate > now;
+        });
+        
+        let nextBPWipeYear = currentYear;
+        
+        // If no BP wipe found this year, get January of next year
+        if (nextBPWipeMonth === undefined) {
+            nextBPWipeMonth = 0; // January
+            nextBPWipeYear = currentYear + 1;
+        }
+        
+        return this.getFirstThursdayOfMonth(nextBPWipeYear, nextBPWipeMonth);
+    }
+
     // Get time remaining until next wipe
     getTimeUntilWipe() {
         const now = new Date();
@@ -89,6 +124,11 @@ class WipeSystem {
         return "First Thursday of every month at 7:00 PM GMT";
     }
 
+    // Get a user-friendly description of when BP wipes occur
+    getBPWipeScheduleDescription() {
+        return "Blueprint wipes: Every 3 months (January, April, July, October)";
+    }
+
     // Get the month name for display
     getMonthName(monthIndex) {
         const months = [
@@ -105,14 +145,29 @@ class WipeSystem {
             const nextWipe = this.getNextWipeDate();
             const timeUntilWipe = this.getTimeUntilWipe();
             const wipeMonth = this.getMonthName(nextWipe.getUTCMonth());
+            const isBPWipe = this.isNextWipeBPWipe();
+            const nextBPWipe = this.getNextBPWipeDate();
+            
+            // Determine wipe type and color
+            const wipeType = isBPWipe ? "Map + Blueprint Wipe" : "Map Wipe Only";
+            const wipeColor = isBPWipe ? "#FF0000" : "#FF6B35"; // Red for BP wipe, Orange for map only
+            const wipeEmoji = isBPWipe ? "🔄💎" : "🔄";
+            
+            let wipeDescription;
+            if (isBPWipe) {
+                wipeDescription = `**ATTENTION SURVIVORS!** This is a **BLUEPRINT WIPE** month!\n\n` +
+                    `The ${wipeMonth} server wipe will reset both the map AND all blueprints. ` +
+                    `Time to make those final pushes and prepare for a completely fresh start!`;
+            } else {
+                wipeDescription = `**Get ready, survivors!** The ${wipeMonth} server wipe is approaching fast!\n\n` +
+                    `This is a **map-only wipe** - your blueprints will be preserved! ` +
+                    `Time to make those final pushes, secure your loot, and prepare for a fresh start on the island!`;
+            }
             
             const embed = new EmbedBuilder()
-                .setColor("#FF6B35") // Orange color
-                .setTitle("🔄 UnitedRust Monthly Server Wipe Countdown")
-                .setDescription(
-                    `**Get ready, survivors!** The ${wipeMonth} server wipe is approaching fast!\n\n` +
-                    "Time to make those final pushes, secure your loot, and prepare for a fresh start on the island!"
-                )
+                .setColor(wipeColor)
+                .setTitle(`${wipeEmoji} UnitedRust Monthly Server Wipe Countdown`)
+                .setDescription(wipeDescription)
                 .addFields(
                     {
                         name: "⏰ Next Wipe Date",
@@ -125,8 +180,8 @@ class WipeSystem {
                         inline: true,
                     },
                     {
-                        name: "📅 Wipe Schedule",
-                        value: this.getWipeScheduleDescription(),
+                        name: "🔄 Wipe Type",
+                        value: wipeType,
                         inline: true,
                     },
                     {
@@ -135,22 +190,68 @@ class WipeSystem {
                         inline: true,
                     },
                     {
-                        name: "🎯 What to Expect",
-                        value: "• Fresh server start\n• All bases and progress reset\n• New opportunities for everyone\n• Updated server features",
+                        name: "📅 Wipe Schedule",
+                        value: this.getWipeScheduleDescription(),
+                        inline: true,
+                    },
+                    {
+                        name: "💎 Blueprint Wipes",
+                        value: this.getBPWipeScheduleDescription(),
+                        inline: true,
+                    }
+                );
+
+            // Add different content based on wipe type
+            if (isBPWipe) {
+                embed.addFields(
+                    {
+                        name: "🎯 What Gets Wiped",
+                        value: "• All player bases and structures\n• Player inventories and items\n• **ALL BLUEPRINTS** (fresh research needed)\n• Map progression and monuments",
+                        inline: false,
+                    },
+                    {
+                        name: "💡 Pro Tips for BP Wipe",
+                        value: "• Take screenshots of your best builds\n• Note down your favorite base designs\n• **Plan your base location** for next wipe\n• Research priority items first after wipe\n• Check <#" + this.mapVoteChannelId + "> for the new map!",
+                        inline: false,
+                    }
+                );
+            } else {
+                embed.addFields(
+                    {
+                        name: "🎯 What Gets Wiped",
+                        value: "• All player bases and structures\n• Player inventories and items\n• Map progression and monuments\n• **Blueprints are PRESERVED** ✅",
                         inline: false,
                     },
                     {
                         name: "💡 Pro Tips",
-                        value: "• Take screenshots of your best builds\n• Enjoy the final hours of this wipe\n• Plan your spawn location for next wipe\n• Check Discord for any wipe day updates",
+                        value: "• Take screenshots of your best builds\n• Enjoy the final hours of this wipe\n• **Plan your base location** for next wipe\n• Your blueprints will carry over!\n• Check <#" + this.mapVoteChannelId + "> for the new map!",
                         inline: false,
                     }
-                )
-                .setThumbnail("https://via.placeholder.com/128x128/FF6B35/FFFFFF?text=🔄")
+                );
+            }
+
+            // Add next BP wipe info if this isn't a BP wipe
+            if (!isBPWipe) {
+                const nextBPWipeMonth = this.getMonthName(nextBPWipe.getUTCMonth());
+                embed.addFields({
+                    name: "💎 Next Blueprint Wipe",
+                    value: `${nextBPWipeMonth} ${nextBPWipe.getUTCFullYear()} (${nextBPWipeMonth} ${nextBPWipe.getUTCDate()})`,
+                    inline: false,
+                });
+            }
+
+            embed.addFields({
+                name: "🗺️ Map Vote",
+                value: `Don't forget to vote for the next map in <#${this.mapVoteChannelId}>!`,
+                inline: false,
+            });
+
+            embed.setThumbnail("https://via.placeholder.com/128x128/FF6B35/FFFFFF?text=🔄")
                 .setTimestamp()
                 .setFooter({ text: "UnitedRust - Monthly Fresh Starts, New Adventures!" });
 
             await channel.send({ embeds: [embed] });
-            console.log(`✅ Monthly wipe countdown announcement sent successfully (${wipeMonth} wipe)`);
+            console.log(`✅ Monthly wipe countdown announcement sent successfully (${wipeMonth} ${wipeType})`);
         } catch (error) {
             console.error("❌ Error sending wipe announcement:", error);
         }
@@ -163,9 +264,14 @@ class WipeSystem {
             const timeUntilWipe = this.getTimeUntilWipe();
             const now = new Date();
             const wipeMonth = this.getMonthName(nextWipe.getUTCMonth());
+            const isBPWipe = this.isNextWipeBPWipe();
+            const nextBPWipe = this.getNextBPWipeDate();
+            
+            const wipeType = isBPWipe ? "Map + Blueprint Wipe" : "Map Wipe Only";
+            const wipeColor = isBPWipe ? "#FF0000" : "#FF6B35";
             
             const embed = new EmbedBuilder()
-                .setColor("#FF6B35")
+                .setColor(wipeColor)
                 .setTitle("🔄 Monthly Server Wipe Information")
                 .setDescription("Here's everything you need to know about the next monthly server wipe!")
                 .addFields(
@@ -177,6 +283,11 @@ class WipeSystem {
                     {
                         name: "⏳ Time Remaining",
                         value: timeUntilWipe,
+                        inline: true,
+                    },
+                    {
+                        name: "🔄 Wipe Type",
+                        value: wipeType,
                         inline: true,
                     },
                     {
@@ -192,20 +303,56 @@ class WipeSystem {
                     {
                         name: "📅 Wipe Schedule",
                         value: this.getWipeScheduleDescription(),
-                        inline: false,
+                        inline: true,
                     },
                     {
-                        name: "ℹ️ What Gets Wiped",
-                        value: "• All player bases and structures\n• Player inventories and items\n• Map progression and monuments\n• Team compositions (if applicable)",
-                        inline: false,
-                    },
-                    {
-                        name: "📊 Monthly Wipe Benefits",
-                        value: "• More time to build and establish\n• Better long-term planning opportunities\n• Reduced server lag from accumulated builds\n• Fresh monthly challenges and goals",
+                        name: "💎 Blueprint Wipe Schedule",
+                        value: this.getBPWipeScheduleDescription(),
                         inline: false,
                     }
-                )
-                .setTimestamp()
+                );
+
+            // Add different information based on wipe type
+            if (isBPWipe) {
+                embed.addFields(
+                    {
+                        name: "ℹ️ What Gets Wiped (BP Wipe)",
+                        value: "• All player bases and structures\n• Player inventories and items\n• **ALL BLUEPRINTS** (complete reset)\n• Map progression and monuments\n• Team compositions (if applicable)",
+                        inline: false,
+                    },
+                    {
+                        name: "🔄 Blueprint Wipe Benefits",
+                        value: "• Complete fresh start for all players\n• Equal footing for everyone\n• New research progression challenges\n• Renewed early-game excitement",
+                        inline: false,
+                    }
+                );
+            } else {
+                embed.addFields(
+                    {
+                        name: "ℹ️ What Gets Wiped (Map Only)",
+                        value: "• All player bases and structures\n• Player inventories and items\n• Map progression and monuments\n• **Blueprints are PRESERVED** ✅\n• Team compositions (if applicable)",
+                        inline: false,
+                    },
+                    {
+                        name: "📊 Map Wipe Benefits",
+                        value: "• Fresh building opportunities\n• Keep your blueprint progress\n• Faster progression with known BPs\n• Focus on base building and PvP",
+                        inline: false,
+                    },
+                    {
+                        name: "💎 Next Blueprint Wipe",
+                        value: `<t:${Math.floor(nextBPWipe.getTime() / 1000)}:F>`,
+                        inline: false,
+                    }
+                );
+            }
+
+            embed.addFields({
+                name: "🗺️ Map Vote",
+                value: `Vote for the next map in <#${this.mapVoteChannelId}>!`,
+                inline: false,
+            });
+
+            embed.setTimestamp()
                 .setFooter({ text: "UnitedRust Monthly Server Information" });
 
             await interaction.reply({ embeds: [embed] });
@@ -270,6 +417,7 @@ class WipeSystem {
         console.log("- Morning announcement: 08:00 GMT daily");
         console.log("- Evening announcement: 20:00 GMT daily");
         console.log("- Wipe schedule: First Thursday of every month at 19:00 GMT");
+        console.log("- BP wipe schedule: Every 3 months (January, April, July, October)");
     }
 
     // Send custom wipe announcement
@@ -280,6 +428,7 @@ class WipeSystem {
             const now = new Date();
             const timeDiff = wipeDate.getTime() - now.getTime();
             const wipeMonth = this.getMonthName(wipeDate.getUTCMonth());
+            const isBPWipe = customDate ? [0, 3, 6, 9].includes(wipeDate.getUTCMonth()) : this.isNextWipeBPWipe();
             
             let timeUntilWipe = "Wipe is happening now!";
             if (timeDiff > 0) {
@@ -295,14 +444,25 @@ class WipeSystem {
                 timeUntilWipe = timeString.trim() || "Less than a minute";
             }
             
+            const wipeType = isBPWipe ? "Map + Blueprint Wipe" : "Map Wipe Only";
+            const wipeColor = isBPWipe ? "#FF0000" : "#FF6B35";
+            const wipeEmoji = isBPWipe ? "🔄💎" : "🔄";
+            
+            let defaultMessage;
+            if (isBPWipe) {
+                defaultMessage = `**ATTENTION SURVIVORS!** This is a **BLUEPRINT WIPE** month!\n\n` +
+                    `The ${wipeMonth} server wipe will reset both the map AND all blueprints. ` +
+                    `Time to make those final pushes and prepare for a completely fresh start!`;
+            } else {
+                defaultMessage = `**Get ready, survivors!** The ${wipeMonth} server wipe is approaching fast!\n\n` +
+                    `This is a **map-only wipe** - your blueprints will be preserved! ` +
+                    `Time to make those final pushes, secure your loot, and prepare for a fresh start on the island!`;
+            }
+            
             const embed = new EmbedBuilder()
-                .setColor("#FF6B35")
-                .setTitle("🔄 UnitedRust Monthly Server Wipe Countdown")
-                .setDescription(
-                    customMessage || 
-                    `**Get ready, survivors!** The ${wipeMonth} server wipe is approaching fast!\n\n` +
-                    "Time to make those final pushes, secure your loot, and prepare for a fresh start on the island!"
-                )
+                .setColor(wipeColor)
+                .setTitle(`${wipeEmoji} UnitedRust Monthly Server Wipe Countdown`)
+                .setDescription(customMessage || defaultMessage)
                 .addFields(
                     {
                         name: "⏰ Next Wipe Date",
@@ -315,8 +475,8 @@ class WipeSystem {
                         inline: true,
                     },
                     {
-                        name: "📅 Wipe Schedule",
-                        value: this.getWipeScheduleDescription(),
+                        name: "🔄 Wipe Type",
+                        value: wipeType,
                         inline: true,
                     },
                     {
@@ -325,8 +485,25 @@ class WipeSystem {
                         inline: true,
                     },
                     {
+                        name: "📅 Wipe Schedule",
+                        value: this.getWipeScheduleDescription(),
+                        inline: true,
+                    },
+                    {
+                        name: "💎 Blueprint Wipes",
+                        value: this.getBPWipeScheduleDescription(),
+                        inline: true,
+                    },
+                    {
                         name: "🎯 What to Expect",
-                        value: "• Fresh server start\n• All bases and progress reset\n• New opportunities for everyone\n• Updated server features",
+                        value: isBPWipe ? 
+                            "• Fresh server start\n• All bases and progress reset\n• **Complete blueprint reset**\n• Updated server features" :
+                            "• Fresh server start\n• All bases and progress reset\n• **Blueprints preserved**\n• Updated server features",
+                        inline: false,
+                    },
+                    {
+                        name: "🗺️ Map Vote",
+                        value: `Don't forget to vote for the next map in <#${this.mapVoteChannelId}>!`,
                         inline: false,
                     }
                 )
@@ -335,7 +512,7 @@ class WipeSystem {
                 .setFooter({ text: "UnitedRust - Monthly Fresh Starts, New Adventures!" });
 
             await channel.send({ embeds: [embed] });
-            console.log(`✅ Custom monthly wipe announcement sent successfully (${wipeMonth} wipe)`);
+            console.log(`✅ Custom monthly wipe announcement sent successfully (${wipeMonth} ${wipeType})`);
         } catch (error) {
             console.error("❌ Error sending custom wipe announcement:", error);
         }
@@ -353,11 +530,14 @@ class WipeSystem {
             
             // Only include future dates
             if (wipeDate > now) {
+                const isBPWipe = [0, 3, 6, 9].includes(currentMonth); // January, April, July, October
                 wipeDates.push({
                     date: wipeDate,
                     month: this.getMonthName(currentMonth),
                     year: currentYear,
-                    day: wipeDate.getUTCDate()
+                    day: wipeDate.getUTCDate(),
+                    isBPWipe: isBPWipe,
+                    wipeType: isBPWipe ? "Map + Blueprint Wipe" : "Map Wipe Only"
                 });
             }
             
