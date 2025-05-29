@@ -1,4 +1,4 @@
-// Wipe Countdown System for UnitedRust Discord Bot
+// Wipe Countdown System for UnitedRust Discord Bot - UPDATED FOR MONTHLY WIPES
 const { EmbedBuilder, PermissionFlagsBits } = require("discord.js");
 const cron = require("node-cron");
 
@@ -11,26 +11,53 @@ class WipeSystem {
         this.wipeMinute = 0; // 00 minutes
     }
 
-    // Calculate next wipe date
-    getNextWipeDate() {
-        const now = new Date();
-        const currentDay = now.getUTCDay();
-        const currentHour = now.getUTCHours();
-        const currentMinute = now.getUTCMinutes();
+    // Calculate the first Thursday of a given month/year
+    getFirstThursdayOfMonth(year, month) {
+        // month is 0-indexed (0 = January, 1 = February, etc.)
+        const firstDayOfMonth = new Date(year, month, 1);
+        const firstDayWeekday = firstDayOfMonth.getUTCDay(); // 0 = Sunday, 1 = Monday, etc.
         
-        // Calculate days until next Thursday
-        let daysUntilWipe = (this.wipeDay - currentDay + 7) % 7;
+        // Calculate days to add to get to first Thursday
+        // If first day is Thursday (4), then first Thursday is day 1
+        // If first day is Friday (5), then first Thursday is day 7 (next week)
+        // If first day is Saturday (6), then first Thursday is day 6
+        // If first day is Sunday (0), then first Thursday is day 5
+        // If first day is Monday (1), then first Thursday is day 4
+        // If first day is Tuesday (2), then first Thursday is day 3
+        // If first day is Wednesday (3), then first Thursday is day 2
         
-        // If it's Thursday but past wipe time, or if it's exactly Thursday at wipe time
-        if (daysUntilWipe === 0) {
-            if (currentHour > this.wipeHour || (currentHour === this.wipeHour && currentMinute >= this.wipeMinute)) {
-                daysUntilWipe = 7; // Next Thursday
-            }
+        let daysToAdd;
+        if (firstDayWeekday <= 4) {
+            // If the first day is Sunday through Thursday
+            daysToAdd = 4 - firstDayWeekday;
+        } else {
+            // If the first day is Friday or Saturday
+            daysToAdd = 7 - firstDayWeekday + 4;
         }
         
-        const nextWipe = new Date(now);
-        nextWipe.setUTCDate(now.getUTCDate() + daysUntilWipe);
-        nextWipe.setUTCHours(this.wipeHour, this.wipeMinute, 0, 0);
+        const firstThursday = new Date(year, month, 1 + daysToAdd);
+        firstThursday.setUTCHours(this.wipeHour, this.wipeMinute, 0, 0);
+        
+        return firstThursday;
+    }
+
+    // Calculate next wipe date (first Thursday of next month)
+    getNextWipeDate() {
+        const now = new Date();
+        const currentYear = now.getUTCFullYear();
+        const currentMonth = now.getUTCMonth();
+        
+        // Get first Thursday of current month
+        let nextWipe = this.getFirstThursdayOfMonth(currentYear, currentMonth);
+        
+        // If we've already passed this month's wipe, get next month's
+        if (now >= nextWipe) {
+            const nextMonth = currentMonth + 1;
+            const nextYear = nextMonth > 11 ? currentYear + 1 : currentYear;
+            const adjustedMonth = nextMonth > 11 ? 0 : nextMonth;
+            
+            nextWipe = this.getFirstThursdayOfMonth(nextYear, adjustedMonth);
+        }
         
         return nextWipe;
     }
@@ -57,18 +84,33 @@ class WipeSystem {
         return timeString.trim() || "Less than a minute";
     }
 
+    // Get a user-friendly description of when wipes occur
+    getWipeScheduleDescription() {
+        return "First Thursday of every month at 7:00 PM GMT";
+    }
+
+    // Get the month name for display
+    getMonthName(monthIndex) {
+        const months = [
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        ];
+        return months[monthIndex];
+    }
+
     // Send wipe countdown announcement
     async sendWipeAnnouncement() {
         try {
             const channel = await this.client.channels.fetch(this.config.generalChannelId);
             const nextWipe = this.getNextWipeDate();
             const timeUntilWipe = this.getTimeUntilWipe();
+            const wipeMonth = this.getMonthName(nextWipe.getUTCMonth());
             
             const embed = new EmbedBuilder()
                 .setColor("#FF6B35") // Orange color
-                .setTitle("🔄 UnitedRust Server Wipe Countdown")
+                .setTitle("🔄 UnitedRust Monthly Server Wipe Countdown")
                 .setDescription(
-                    "**Get ready, survivors!** The next server wipe is approaching fast!\n\n" +
+                    `**Get ready, survivors!** The ${wipeMonth} server wipe is approaching fast!\n\n` +
                     "Time to make those final pushes, secure your loot, and prepare for a fresh start on the island!"
                 )
                 .addFields(
@@ -84,7 +126,12 @@ class WipeSystem {
                     },
                     {
                         name: "📅 Wipe Schedule",
-                        value: "Every Thursday at 7:00 PM GMT",
+                        value: this.getWipeScheduleDescription(),
+                        inline: true,
+                    },
+                    {
+                        name: "🗓️ This Month's Wipe",
+                        value: `${wipeMonth} ${nextWipe.getUTCDate()}, ${nextWipe.getUTCFullYear()}`,
                         inline: true,
                     },
                     {
@@ -100,10 +147,10 @@ class WipeSystem {
                 )
                 .setThumbnail("https://via.placeholder.com/128x128/FF6B35/FFFFFF?text=🔄")
                 .setTimestamp()
-                .setFooter({ text: "UnitedRust - Fresh Starts, New Adventures!" });
+                .setFooter({ text: "UnitedRust - Monthly Fresh Starts, New Adventures!" });
 
             await channel.send({ embeds: [embed] });
-            console.log("✅ Wipe countdown announcement sent successfully");
+            console.log(`✅ Monthly wipe countdown announcement sent successfully (${wipeMonth} wipe)`);
         } catch (error) {
             console.error("❌ Error sending wipe announcement:", error);
         }
@@ -115,11 +162,12 @@ class WipeSystem {
             const nextWipe = this.getNextWipeDate();
             const timeUntilWipe = this.getTimeUntilWipe();
             const now = new Date();
+            const wipeMonth = this.getMonthName(nextWipe.getUTCMonth());
             
             const embed = new EmbedBuilder()
                 .setColor("#FF6B35")
-                .setTitle("🔄 Server Wipe Information")
-                .setDescription("Here's everything you need to know about the next server wipe!")
+                .setTitle("🔄 Monthly Server Wipe Information")
+                .setDescription("Here's everything you need to know about the next monthly server wipe!")
                 .addFields(
                     {
                         name: "⏰ Next Wipe",
@@ -137,18 +185,28 @@ class WipeSystem {
                         inline: true,
                     },
                     {
+                        name: "🗓️ This Month's Wipe",
+                        value: `${wipeMonth} ${nextWipe.getUTCDate()}, ${nextWipe.getUTCFullYear()}`,
+                        inline: true,
+                    },
+                    {
                         name: "📅 Wipe Schedule",
-                        value: "Every Thursday at 7:00 PM GMT",
+                        value: this.getWipeScheduleDescription(),
                         inline: false,
                     },
                     {
                         name: "ℹ️ What Gets Wiped",
                         value: "• All player bases and structures\n• Player inventories and items\n• Map progression and monuments\n• Team compositions (if applicable)",
                         inline: false,
+                    },
+                    {
+                        name: "📊 Monthly Wipe Benefits",
+                        value: "• More time to build and establish\n• Better long-term planning opportunities\n• Reduced server lag from accumulated builds\n• Fresh monthly challenges and goals",
+                        inline: false,
                     }
                 )
                 .setTimestamp()
-                .setFooter({ text: "UnitedRust Server Information" });
+                .setFooter({ text: "UnitedRust Monthly Server Information" });
 
             await interaction.reply({ embeds: [embed] });
         } catch (error) {
@@ -174,7 +232,7 @@ class WipeSystem {
 
             await this.sendWipeAnnouncement();
             await interaction.reply({
-                content: "✅ Wipe countdown announcement has been sent!",
+                content: "✅ Monthly wipe countdown announcement has been sent!",
                 ephemeral: true,
             });
         } catch (error) {
@@ -192,7 +250,7 @@ class WipeSystem {
         cron.schedule(
             "0 8 * * *",
             () => {
-                console.log("🔄 Triggering morning wipe announcement...");
+                console.log("🔄 Triggering morning monthly wipe announcement...");
                 this.sendWipeAnnouncement();
             },
             { timezone: "UTC" }
@@ -202,15 +260,16 @@ class WipeSystem {
         cron.schedule(
             "0 20 * * *",
             () => {
-                console.log("🔄 Triggering evening wipe announcement...");
+                console.log("🔄 Triggering evening monthly wipe announcement...");
                 this.sendWipeAnnouncement();
             },
             { timezone: "UTC" }
         );
 
-        console.log("🔄 Wipe announcements scheduled successfully!");
+        console.log("🔄 Monthly wipe announcements scheduled successfully!");
         console.log("- Morning announcement: 08:00 GMT daily");
         console.log("- Evening announcement: 20:00 GMT daily");
+        console.log("- Wipe schedule: First Thursday of every month at 19:00 GMT");
     }
 
     // Send custom wipe announcement
@@ -220,6 +279,7 @@ class WipeSystem {
             const wipeDate = customDate || this.getNextWipeDate();
             const now = new Date();
             const timeDiff = wipeDate.getTime() - now.getTime();
+            const wipeMonth = this.getMonthName(wipeDate.getUTCMonth());
             
             let timeUntilWipe = "Wipe is happening now!";
             if (timeDiff > 0) {
@@ -237,10 +297,10 @@ class WipeSystem {
             
             const embed = new EmbedBuilder()
                 .setColor("#FF6B35")
-                .setTitle("🔄 UnitedRust Server Wipe Countdown")
+                .setTitle("🔄 UnitedRust Monthly Server Wipe Countdown")
                 .setDescription(
                     customMessage || 
-                    "**Get ready, survivors!** The next server wipe is approaching fast!\n\n" +
+                    `**Get ready, survivors!** The ${wipeMonth} server wipe is approaching fast!\n\n` +
                     "Time to make those final pushes, secure your loot, and prepare for a fresh start on the island!"
                 )
                 .addFields(
@@ -256,7 +316,12 @@ class WipeSystem {
                     },
                     {
                         name: "📅 Wipe Schedule",
-                        value: "Every Thursday at 7:00 PM GMT",
+                        value: this.getWipeScheduleDescription(),
+                        inline: true,
+                    },
+                    {
+                        name: "🗓️ This Month's Wipe",
+                        value: `${wipeMonth} ${wipeDate.getUTCDate()}, ${wipeDate.getUTCFullYear()}`,
                         inline: true,
                     },
                     {
@@ -267,13 +332,44 @@ class WipeSystem {
                 )
                 .setThumbnail("https://via.placeholder.com/128x128/FF6B35/FFFFFF?text=🔄")
                 .setTimestamp()
-                .setFooter({ text: "UnitedRust - Fresh Starts, New Adventures!" });
+                .setFooter({ text: "UnitedRust - Monthly Fresh Starts, New Adventures!" });
 
             await channel.send({ embeds: [embed] });
-            console.log("✅ Custom wipe announcement sent successfully");
+            console.log(`✅ Custom monthly wipe announcement sent successfully (${wipeMonth} wipe)`);
         } catch (error) {
             console.error("❌ Error sending custom wipe announcement:", error);
         }
+    }
+
+    // Utility method to get next few wipe dates (for testing/admin purposes)
+    getUpcomingWipeDates(count = 6) {
+        const wipeDates = [];
+        const now = new Date();
+        let currentYear = now.getUTCFullYear();
+        let currentMonth = now.getUTCMonth();
+        
+        for (let i = 0; i < count; i++) {
+            const wipeDate = this.getFirstThursdayOfMonth(currentYear, currentMonth);
+            
+            // Only include future dates
+            if (wipeDate > now) {
+                wipeDates.push({
+                    date: wipeDate,
+                    month: this.getMonthName(currentMonth),
+                    year: currentYear,
+                    day: wipeDate.getUTCDate()
+                });
+            }
+            
+            // Move to next month
+            currentMonth++;
+            if (currentMonth > 11) {
+                currentMonth = 0;
+                currentYear++;
+            }
+        }
+        
+        return wipeDates.slice(0, count);
     }
 }
 
